@@ -1,13 +1,13 @@
 import numpy as np
 
 
-def gaussian(mu: np.ndarray, Sigma: np.ndarray):
+def gaussian(mu: float, sigma: float):
     """Returns a gaussian noise generator"""
-    return lambda: np.random.multivariate_normal(mean=mu, cov=Sigma)
+    return lambda: np.random.normal(loc=mu, scale=sigma)
 
 
 if __name__ == "__main__":
-    noise = gaussian(np.array([0, 0]), np.eye(2))
+    noise = gaussian(0, 1)
 
     print(noise())
     print(noise())
