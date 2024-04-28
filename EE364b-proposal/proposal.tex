@@ -1,0 +1,66 @@
+\documentclass{IEEEtran}
+
+\usepackage{lipsum}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{biblatex}
+
+\addbibresource{..\\sources.bib}
+
+\input{macros.tex}
+
+\begin{document}
+
+
+\title{Optimized Localization of Robot Swarm}
+
+\author{\Large Erik Helmer \\ \small \texttt{erik.helmer@stanford.edu}}
+
+\maketitle
+
+\section{Background}
+When deploying and controlling a robot swarm, it is necessary to know the positions of the robots. This project intends to investigate one method of relative localization within a robot swarm. The method, here called DRSL (Distance-based Robot Swarm Localization), uses distance measurements between robots which can be collected with simple, cheap sensors. Additionally, this method is environment agnostic; it does not require ideal conditions with existing mapping systems such as a camera array. DRSL works by letting each robot collect distance measurements of nearby objects and, though optimization, using the combined measurements determining the positions of the swarm.
+
+\section{Problem}
+The problem is split into two parts: localization and estimation.
+\subsection{Localization}
+For a swarm of $N$ robots in $k$ dimensions, where the distances between some of the robots are known, we have: 
+\begin{align}
+    \text{Positions } \x &\in \mathbf{R}^k, &&\forall i \in \{1, 2, ..., N\}\\
+    \text{Measurements } \dd &\in \mathbf{R},&&\forall (i,j) \in \mathcal{E},
+\end{align}
+where $\mathcal{E}$ is the set of indices $(i, j)$ for which we have a measurement $\dd$.
+
+The problem is to reconstruct the positions $\x$ from the measurements $\dd$. Assuming the measurements are on the form 
+\begin{align}
+    \dd = \bar{d}_{ij} + v_{ij}, \quad v_{ij} \sim \mathbf{N}(0, \sigma^2_{ij}),
+\end{align}
+
+where $\bar{d}_{ij} = \norm{x_i - x_j}_2$ is the real distance, then by \cite{R_elevator} the MLE estimate is the solution to the problem
+\begin{align}
+    \label{eq:opt_prob}
+    \min_{\x[n] \in \mathbf{R}^k \ \forall n} && 
+    \sum_{(i,j) \in \mathcal{E}} \frac{w_{ij}}{2} \left(\norm{\x - \x[j]}_2 - \dd \right)^2,
+\end{align}
+where $w_{ij}=\frac{\alpha}{\sigma_{ij}^2}$ for some $\alpha$.
+
+Though this problem is non-convex, there are multiple proposed methods to solve it approximately. Kruskal proposed using subgradient descent to minimize this function~(\cite{Kruskal1964}), though this is likely to find suboptimal local minima if the initialization is poor. Another method that is similarly sensitive to initialization value is SMACOF, which instead minimizes a related function to get a local minima~\cite{de2005applications}. Finally, the Riemannian Elevator method is a recent method which solves a higher-dimensional relaxation and uses the solution as a initialization for the original problem~\cite{R_elevator}. 
+
+\subsection{Estimation}
+We represent the state of each robot as
+\begin{align}
+    \state = \begin{bmatrix}
+        \x \\ \xdot \\ \xdotdot.
+    \end{bmatrix}
+\end{align}
+Now the state update equation is 
+\begin{align}
+    \state^{(k+1)} = f(\state^{(k)}, u_i^{(k)}).
+\end{align}
+Depending on the structure of $f$, the state can optimally be inferred from a history of measurements with a variety of methods such as the Kalman filter and its extensions.
+
+\subsection{Problem Statement}
+This project aims to combine some of these presented methods to estimate the states of the robots in the swarm. For each set of measurements $\dd$, we can approximately solve equation~\ref{eq:opt_prob}. This gives an estimate of the robot positions, which we feed to some filtering algorithm. The next predicted state is then used as an initialization for solving the next optimization problem. 
+
+\printbibliography
+\end{document}
