@@ -24,13 +24,11 @@ def init(agents):
 
             with lock:
                 pos = ag.get_pos()
-                vel = ag.get_vel()
-                acc = ag.get_acc()
 
-            states.append((pos, vel, acc))
+            states.append(pos)
 
         for state, circle in zip(states, circles):
-            pos, vel, acc = state
+            pos = state
             canvas.coords(circle, pos[0] - r, pos[1] - r, pos[0] + r, pos[1] + r)
 
         time_taken = int(1000 * (time.time() - t0))

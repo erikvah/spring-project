@@ -5,55 +5,91 @@ import numpy as np
 
 
 class _Path:
-    def __init__(self):
+    def __init__(self, start: np.ndarray):
         self._k: int = 0
+        self._start = start
+        self._pos = start
 
-    def move(self, pos: np.ndarray, vel: np.ndarray, acc: np.ndarray):
+    def move(self) -> np.ndarray:
         raise NotImplementedError()
+
+    def get_start(self) -> np.ndarray:
+        return self._start.copy()
 
 
 class StillPath(_Path):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, start: np.ndarray):
+        super().__init__(start)
 
-    def move(self, pos: np.ndarray, vel: np.ndarray, acc: np.ndarray):
-        return
+    def move(self) -> np.ndarray:
+        return self._pos
 
 
 class SplinePath(_Path):
-    def __init__(self, points):
-        super().__init__()
+    def __init__(self, start: np.ndarray):
+        super().__init__(start)
+        raise NotImplementedError()
+
+    def move(self) -> np.ndarray:
         raise NotImplementedError()
 
 
+class PeriodicPath(_Path):
+    def __init__(self, start: np.ndarray, N: int, speed: float):
+        super().__init__(start)
+
+        assert N > 0
+
+        self._N = N
+        self._speed = speed
+
+        self._a0 = self._start[0]
+        self._c0 = self._start[1]
+
+        self._a = np.random.normal(0, 100 / np.sqrt(N), N)
+        self._b = np.random.normal(0, 100 / np.sqrt(N), N)
+        self._c = np.random.normal(0, 100 / np.sqrt(N), N)
+        self._d = np.random.normal(0, 100 / np.sqrt(N), N)
+
+        self._k += np.random.randint(0, 500)
+
+    def move(self) -> np.ndarray:
+        v_cos = np.array(
+            [np.cos(2 * np.pi * i * self._k * self._speed / self._N) for i in range(1, self._N + 1)]
+        )
+        v_sin = np.array(
+            [np.sin(2 * np.pi * i * self._k * self._speed / self._N) for i in range(1, self._N + 1)]
+        )
+        self._pos[0] = self._a0 + (v_cos * self._a + v_sin * self._b).sum()
+        self._pos[1] = self._c0 + (v_cos * self._c + v_sin * self._d).sum()
+
+        self._k += 1
+
+        return self._pos.copy()
+
+
 class CirclePath(_Path):
-    def __init__(self, speed: float, size: float, offset: int = 0):
+    def __init__(self, start: np.ndarray, speed: float, size: float, offset: int = 0):
         """Returns a circular path with given parameters."""
-        super().__init__()
+        super().__init__(start)
         self._size: float = size
         self._speed: float = speed
         self._k += offset
 
-    def move(self, pos: np.ndarray, vel: np.ndarray, acc: np.ndarray):
-        new_vel_x = self._size * self._speed * np.cos(self._speed * self._k)
-        new_vel_y = self._size * self._speed * np.sin(self._speed * self._k)
-        acc[0] = new_vel_x - vel[0]
-        acc[1] = new_vel_y - vel[1]
-        vel[0] = new_vel_x
-        vel[1] = new_vel_y
-        pos += vel
+    def move(self) -> np.ndarray:
+        self._pos[0] = self._start + self._size * np.cos(self._speed * self._k)
+        self._pos[1] = self._start + self._size * np.sin(self._speed * self._k)
+
         self._k += 1
+
+        return self._pos.copy()
 
 
 class Agent:
     def __init__(
         self,
-        init_pos: np.ndarray,
-        init_vel: np.ndarray,
-        init_acc: np.ndarray,
         noise: Callable,
         path: _Path,
-        dim: int = 2,
     ):
         """An agent is an abstraction of a robot
         moving along some given path and taking noisy
@@ -70,15 +106,7 @@ class Agent:
         - path: The path to follow
         - dim: The dimensions of the position
         """
-        assert dim == 2
-
-        self._pos = np.zeros(dim, dtype=float)
-        self._vel = np.zeros(dim, dtype=float)
-        self._acc = np.zeros(dim, dtype=float)
-
-        self._pos[:] = init_pos
-        self._vel[:] = init_vel
-        self._acc[:] = init_acc
+        self._pos = path.get_start()
         self._noise: Callable = noise
         self._path: _Path = path
         self._lock: Lock = Lock()
@@ -107,7 +135,7 @@ class Agent:
     def move(self):
         """Move agent along path. Thread safe. Updates all state fields."""
         with self._lock:
-            self._path.move(self._pos, self._vel, self._acc)
+            self._pos = self._path.move()
 
     def get_measurements(self):
         """Returns copy of measurements. Not thread safe"""
@@ -116,14 +144,6 @@ class Agent:
     def get_pos(self):
         """Return copy of position. Not thread safe."""
         return self._pos.copy()
-
-    def get_vel(self):
-        """Return copy of velocity. Not thread safe."""
-        return self._vel.copy()
-
-    def get_acc(self):
-        """Return copy of acceleration. Not thread safe."""
-        return self._acc.copy()
 
     def get_lock(self):
         """Returns lock. Acquire before accessing

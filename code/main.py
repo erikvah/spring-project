@@ -1,5 +1,5 @@
 from threading import Thread
-from time import sleep
+from time import sleep, time
 
 import agent
 import gui
@@ -10,14 +10,18 @@ from params import Params
 
 def main():
     agents = []
+    n_agents = 40
+    np.random.seed(0)
+    x = np.random.uniform(Params.margin, Params.window_size[0] - 100, n_agents)
+    y = np.random.uniform(Params.margin, Params.window_size[1] - Params.margin, n_agents)
+    X = np.vstack((x, y)).T
 
-    for i in range(5):
+    for i in range(n_agents):
         ag = agent.Agent(
-            np.array([200 + 100 * i, 200]),
-            np.array([0, 0]),
-            np.array([0, 0]),
             gaussian(0, 1),
-            agent.CirclePath(0.02, 30 + 10 * i, offset=10 * i),
+            agent.PeriodicPath(X[i, :], 1 + int((i + 1) / 4), 0.004),
+            # agent.PeriodicPath(np.array([300 + 20 * i, 500]), 1 + int((i + 1) / 4), 0.003),
+            # agent.CirclePath(0.02, 30 + 10 * i, offset=10 * i),
             # agent.StillPath(),
         )
         agents.append(ag)
@@ -35,11 +39,13 @@ def main():
 
 def update_agents(agents: list[agent.Agent]):
     while True:
+        t0 = time()
         for ag in agents:
             ag.move()
             ag.measure_dists()
-
-        sleep(Params.move_delay)
+        time_sleep = max(Params.move_delay - (time() - t0), 0)
+        sleep(time_sleep)
+        # print("Sleeping", int(1000 * time_sleep), "ms")
 
 
 if __name__ == "__main__":
