@@ -1,0 +1,70 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{amsmath,amssymb,amsfonts}
+% \usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage[style=ieee]{biblatex}
+% \usepackage{textcomp}
+\usepackage{xcolor}
+% \usepackage{placeins}
+
+\addbibresource{..\\sources.bib}
+
+\graphicspath{{.\\figures}}
+
+\input{macros.tex}
+
+\begin{document}
+
+\title{Conference Paper Title}
+
+\author{\IEEEauthorblockN{1\textsuperscript{st} Given Name Surname}
+\IEEEauthorblockA{\textit{dept. name of organization (of Aff.)} \\
+\textit{name of organization (of Aff.)}\\
+City, Country \\
+email address or ORCID}
+}
+
+\maketitle
+
+\begin{abstract}
+\input{abstract.tex}
+
+\end{abstract}
+
+\begin{IEEEkeywords}
+component, formatting, style, styling, insert
+\end{IEEEkeywords}
+
+\section{Introduction}
+\label{sec:intro}
+\input{introduction.tex}
+
+\section{Literary Review}
+\input{lit_rev.tex}
+
+\section{Proposed Work}
+\input{prop_work.tex}
+
+% Please number citations consecutively within brackets \cite{b1}. The 
+% sentence punctuation follows the bracket \cite{b2}. Refer simply to the reference 
+% number, as in \cite{b3}---do not use ``Ref. \cite{b3}'' or ``reference \cite{b3}'' except at 
+% the beginning of a sentence: ``Reference \cite{b3} was the first $\ldots$''
+
+% Number footnotes separately in superscripts. Place the actual footnote at 
+% the bottom of the column in which it was cited. Do not put footnotes in the 
+% abstract or reference list. Use letters for table footnotes.
+
+% Unless there are six authors or more give all authors' names; do not use 
+% ``et al.''. Papers that have not been published, even if they have been 
+% submitted for publication, should be cited as ``unpublished'' \cite{b4}. Papers 
+% that have been accepted for publication should be cited as ``in press'' \cite{b5}. 
+% Capitalize only the first word in a paper title, except for proper nouns and 
+% element symbols.
+
+% For papers published in translation journals, please give the English 
+% citation first, followed by the original foreign-language citation \cite{b6}.
+
+\printbibliography
+
+\end{document}
