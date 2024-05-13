@@ -1,13 +1,18 @@
 \documentclass[conference]{IEEEtran}
 
 \usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
+% \usepackage{algorithmic}
 \usepackage{graphicx}
 \usepackage[style=ieee]{biblatex}
-\usepackage{textcomp}
+% \usepackage{textcomp}
 \usepackage{xcolor}
+% \usepackage{placeins}
 
 \addbibresource{..\\sources.bib}
+
+\graphicspath{{.\\figures}}
+
+\input{macros.tex}
 
 \begin{document}
 
@@ -32,6 +37,7 @@ component, formatting, style, styling, insert
 \end{IEEEkeywords}
 
 \section{Introduction}
+\label{sec:intro}
 \input{introduction.tex}
 
 \section{Literary Review}

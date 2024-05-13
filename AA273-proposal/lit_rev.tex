@@ -1,0 +1,24 @@
+The problem formulated in section~\ref{sec:intro} is usually reformulated as a graph problem, see figure~\ref{fig:problem-graph}. The measurements are interpreted as the edge weights and the positions are interpreted as vertex positions. 
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth,trim=31mm 48mm 106mm 15mm, clip]{graph.pdf}
+    \caption{Problem reformulation. In the figure, we have a graph $\mathcal{G}=(\mathcal{V}, \mathcal{E})$ where the edges $(i, j) \in \mathcal{E}$ have weights $y_{i,j}$ and the vertices $k \in \mathcal{V}$ have positions $\bar{x}_k$.}
+    \label{fig:problem-graph}
+\end{figure}
+
+In practice, it is rarely the case that the correspondences between robots are known without sophisticated identification algorithms using computer vision or other computationally complex methods. This is known as the anonymous localization problem, and it has been investigated by Franchi, Oriolo and Stegagno~\cite{anonymous_loc_1,anonymous_loc_2,anonymous_loc_3}. They developed a few algorithms to account for the missing correspondences by using statistical methods to simultaneously estimate multiple possible relative poses to determine the most likely correspondences. However, this markedly increases the complexity of the problem and will not be investigated further.
+
+It will henceforth generally be assumed that while the measurements $y_{i,j}$ are not complete, i.e. $\exists (i, j) \notin \mathcal{E}$, the correspondences are known. That is to say, for all measurements $y$, it is known which distance between two robots this is a measurement of. 
+
+
+
+This problem is not new. One early approach to solve it was presented by Kruskal in \cite{Kruskal1964}. He proposed a measurement of good fit, or loss, named the stress function: 
+\begin{align}
+    \label{eq:kruskal-stress}
+    S(x_1, ..., x_N) = \sum_{(i,j) \in \mathcal{E}} \left(
+        \norm{x_i - x_j}_2 - y_{i, j}
+    \right)^2
+\end{align}
+More accurately, Kruskal proposed a normalized version of equation~\ref{eq:kruskal-stress}, but for the purposes of this project the unnormalized version is sufficient. This function is non-convex, so iterative optimization algorithms such as (sub)gradient descent or ADMM generally converge to local minima, which necessitates a good initial guess. 
+
+An alternative algorithm was proposed in~\cite{MDS_proposal} by De Leeuw. 
