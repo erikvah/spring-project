@@ -8,3 +8,5 @@ The subject of this project is an implementation and extension of a novel optimi
     \label{fig:problem_desc}
 \end{figure}
 SLAM usually relies on measurements of external fixed points in the scene to extract measurements. This method would instead rely on the robots measuring only distance to each other. 
+
+Some assumptions are made of the problem. It is assumed that while the distance measurements may be noisy, they are measurements of another robot in the group and not a false measurement of the environment. We will further assume additive Gaussian noise on the measurements. This project will not investigate the distributed case, and will instead assume centralized knowledge of all robot measurements. 
