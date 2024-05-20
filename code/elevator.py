@@ -6,6 +6,7 @@ import pymanopt.manifolds
 import pymanopt.optimizers
 import scipy
 import scipy.linalg
+import scipy.sparse
 import scipy.sparse as sp
 from numpy.linalg import matrix_rank as rank
 from numpy.linalg import norm, pinv
@@ -27,8 +28,9 @@ def main():
 
     # Other
     np.random.seed(0)
-    α = 10  # Improve matrix conditioning?
+    α = 100  # Improve matrix conditioning?
     threshold_frac = 0.001
+    cholesky_noise = 0.001
 
     ## Matrices
     # Real positions
@@ -59,7 +61,7 @@ def main():
     #     ]
     # )
 
-    C = np.array(
+    C = sp.csr_array(
         [
             [-1, 1, 0, 0],
             [0, -1, 0, 1],
@@ -68,13 +70,19 @@ def main():
             [-1, 0, 0, 1],
         ]
     )
-    assert np.all(np.sum(C, axis=1) == 0)  # Sanity checks
+
+    idx_rows, idx_cols = C.nonzero()
+
+    Y_real = np.array([[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1] / np.sqrt(2)])
+
+    assert np.all(C.sum(axis=1) == 0)  # Sanity checks
     assert C.shape == (m, n)
 
     # Measurements
     diag = np.zeros(m)
 
     for it in range(m):
+        # i, j = idx_rows[2 * it], idx_cols[2 * it + 1]
         i, j = get_ij(C, it)
         diag[it] = norm(positions[i, :] - positions[j, :]) + np.random.normal(loc=0, scale=σ[i])
 
@@ -86,6 +94,7 @@ def main():
     diag = np.zeros(m)
 
     for it in range(m):
+        # i, j = idx_rows[m], idx_cols[m]
         i, j = get_ij(C, it)
         diag[it] = α / σ_sq[i]
 
@@ -94,8 +103,9 @@ def main():
     ## Solve
     D_tilde_sq = D_tilde**2
     Q_1 = D_tilde_sq @ W
-    G = W @ C @ pinv(C.T @ W @ C) @ C.T @ W
-    Q_2 = -D_tilde_sq @ G
+    # Q_2 = -D_tilde_sq @ W @ C @ pinv(C.T @ W @ C) @ C.T @ W
+    G_pinv = pinv((C.T @ W @ C).toarray())
+    Q_2 = -D_tilde_sq @ W @ C @ G_pinv @ C.T @ W
 
     # Dual SDP
     Λ = cp.Variable((m, m), diag=True)
@@ -117,27 +127,41 @@ def main():
     threshold = Σ.max() * threshold_frac  # % of max eigenvalue
     # Σ_thresh = np.where(Σ < threshold, 0, Σ)
     R_rank = np.where(Σ < threshold, 0, 1).sum()
-    r = m - R_rank
+
+    # r = m - R_rank
+    r = m
 
     V = Vt.T[:, R_rank:]
 
     # Solve relaxed primal problem
-    Z_bar = cp.Variable((r, r), PSD=True)
+    if False:
+        Z_bar = cp.Variable((r, r), PSD=True)
 
-    obj_primal = cp.Minimize(cp.square(cp.norm2(cp.diag(V @ Z_bar @ V.T) - np.ones(m))))
+        obj_primal = cp.Minimize(cp.square(cp.norm2(cp.diag(V @ Z_bar @ V.T) - np.ones(m))))
 
-    cons_primal = []
+        cons_primal = []
 
-    prob_primal = cp.Problem(obj_primal, cons_primal)
-    prob_primal.solve()
+        prob_primal = cp.Problem(obj_primal, cons_primal)
+        prob_primal.solve()
 
-    # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
-    Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value).T
+        # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
+        Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value).T
+
+    else:
+        Z = cp.Variable((m, m), PSD=True)
+        obj_primal = cp.Minimize(cp.trace(Q_2 @ Z))
+
+        cons_primal = [cp.diag(Z) == 1]
+
+        prob_primal = cp.Problem(obj_primal, cons_primal)  # type:ignore
+        prob_primal.solve()
+
+        Y_r_star = scipy.linalg.cholesky(Z.value + np.eye(m) * cholesky_noise, lower=True)
 
     # Solve MLE problem (implement solver?)
     # project to oblique manifold
 
-    Y_0 = (Y_r_star.T / norm(Y_r_star, axis=1)).T
+    Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
 
     circle = pymanopt.manifolds.Sphere(2)
 
@@ -151,16 +175,28 @@ def main():
     result_mle = optimizer_mle.run(prob_mle, initial_point=Y_0)
     p_mle_star = result_mle.cost
     Y_mle_star = result_mle.point
+    X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
 
-    print(p_mle_star - p_sdp_star)
-    print(result_mle.point)
+    # print(p_mle_star - p_sdp_star)
+    # print(result_mle.point)
+    print(positions)
+    print(X_star - X_star[0, :])
 
     return
 
 
-def get_ij(C: np.ndarray, row: int):
+def get_ij_old(C: np.ndarray, row: int):
     i = np.where(C[row, :] == -1)[0][0]
     j = np.where(C[row, :] == 1)[0][0]
+
+    return i, j
+
+
+def get_ij(C: sp.csr_array, row: int):
+    C_row = C[[row], :].toarray().squeeze()
+
+    i = np.where(C_row == -1)[0][0]
+    j = np.where(C_row == 1)[0][0]
 
     return i, j
 
