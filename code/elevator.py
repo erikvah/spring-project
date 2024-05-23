@@ -12,6 +12,7 @@ import scipy.linalg
 import scipy.sparse
 import scipy.sparse as sp
 import scipy.special
+import utils
 from numpy.linalg import matrix_rank as rank
 from numpy.linalg import norm, pinv
 
@@ -34,7 +35,7 @@ def main_old():
     # Other
     np.random.seed(0)
     α = 100  # Improve matrix conditioning?
-    threshold_frac = 0.001
+    threshold_frac = 0.05
     cholesky_noise = 0.001
 
     ## Matrices
@@ -196,12 +197,12 @@ def main_old():
 
 def main():
     np.random.seed(0)
-    n = 10
-    m = n + 60
+    n = 20
+    m = n + 200
     assert n * (n - 1) >= m, "Too many measurements!"
-    alpha = 10
+    alpha = 0.0001
     sigma = 1
-    threshold = 0.001
+    threshold = 0.1
     cholesky_noise = 0.001
 
     X = np.random.uniform(low=(0, 0), high=(1600, 900), size=(n, 2))
@@ -239,6 +240,7 @@ def main():
 
     X_hat = solve_elevator(indices, measurements, sigmas, m, n, alpha, threshold, cholesky_noise)
 
+    utils.plot_and_view_unbiased([X, X_hat], ["Real", "Estimate"], [False, True])
     X_mean = X.mean(axis=0)
     X_hat_mean = X_hat.mean(axis=0)
 
@@ -248,25 +250,9 @@ def main():
     # foo, X_var, X_ax = np.linalg.svd(X, full_matrices=False)
     # _, X_hat_var, X_hat_ax = np.linalg.svd(X_hat, full_matrices=False)
     Q1, R1 = np.linalg.qr(X.T)
-    if np.linalg.det(Q1) < 0:
-        Q1[:, [0, 1]] = Q1[:, [1, 0]]
-        R1[[0, 1], :] = R1[[1, 0], :]
-
-    if Q1[0, 0] < 0:
-        Q1 = -Q1
-        R1 = -R1
-
     X_normalized = R1.T
 
     Q2, R2 = np.linalg.qr(X_hat.T)
-    if np.linalg.det(Q2) < 0:
-        Q2[:, [0, 1]] = Q2[:, [1, 0]]
-        R2[[0, 1], :] = R2[[1, 0], :]
-
-    if Q2[0, 0] < 0:
-        Q2 = -Q2
-        R2 = -R2
-
     X_hat_normalized = R2.T
 
     # X_normalized = (X_ax.T @ X.T @ foo.T).T
@@ -274,7 +260,8 @@ def main():
     # X_hat_normalized = (np.linalg.inv(X_hat_ax) @ (X_hat - X_hat_mean).T).T
 
     plt.scatter(X_normalized[:, 0], X_normalized[:, 1], marker="x", label="Real")
-    plt.scatter(X_hat_normalized[:, 0], X_hat_normalized[:, 1], marker="+", label="Estimate")
+    # plt.scatter(X_hat_normalized[:, 0], X_hat_normalized[:, 1], marker="+", label="Estimate")
+    plt.scatter(X_hat_normalized[:, 0], -X_hat_normalized[:, 1], marker="+", label="Estimate")
 
     # plt.scatter((X - X_mean)[:, 0], (X - X_mean)[:, 1], marker="x", label="Real")
     # plt.scatter(
@@ -341,7 +328,7 @@ def solve_elevator(
 
     prob_dual_sdp = cp.Problem(obj_dual_sdp, cons_dual_sdp)  # type:ignore
 
-    prob_dual_sdp.solve("MOSEK")
+    prob_dual_sdp.solve("MOSEK", verbose=True)
     assert prob_dual_sdp.value != -np.inf
     Λ_star = sp.dia_array(Λ.value)
 
@@ -355,6 +342,7 @@ def solve_elevator(
     R_rank = np.where(Σ < threshold, 0, 1).sum()
 
     r = m - R_rank
+
     V = Vt.T[:, m - r :]
 
     if r == 0:
@@ -379,7 +367,7 @@ def solve_elevator(
         cons_primal = []
 
         prob_primal = cp.Problem(obj_primal, cons_primal)
-        prob_primal.solve()
+        prob_primal.solve("MOSEK", verbose=True)
 
         # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
         Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value).T

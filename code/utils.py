@@ -1,15 +1,19 @@
+import time
+
 import matplotlib.pyplot as plt
 import numpy as np
 
+__t0 = 0
 
-def generate_positions(m, n):
-    assert n * (n - 1) >= m, "Too many measurements!"
+
+def generate_positions(n):
     X = np.random.uniform(low=(0, 0), high=(1600, 900), size=(n, 2))
 
     return X
 
 
 def generate_indices(m, n):
+    assert n * (n - 1) >= m, "Too many measurements!"
     indices = np.zeros((m, 2), dtype=int)
 
     # Give every node a measurement
@@ -42,13 +46,40 @@ def generate_measurements(X, indices, sigmas):
     return measurements
 
 
-def get_unbiased_coords(X):
+def get_unbiased_coords(X, flip):
     mean = X.mean(axis=0)
 
     Q, R = np.linalg.qr((X - mean).T)
+    if flip:
+        R[1, :] *= -1
     return R.T
 
 
 def plot_points(Xs: list, labels: list):
+    s = 50
     for X, label in zip(Xs, labels):
-        plt.scatter(X[:, 0], X[:, 1], label=label, marker="x")
+        plt.scatter(X[:, 0], X[:, 1], label=label, marker="x", s=s)
+        s -= 20
+
+
+def plot_and_view_unbiased(Xs: list, labels: list, flip_y: list):
+    X_unbiased = []
+    for X, label, flip in zip(Xs, labels, flip_y):
+        X_unbiased.append(get_unbiased_coords(X, flip))
+
+    plot_points(X_unbiased, labels)
+    plt.legend()
+    plt.axis("equal")
+    plt.show()
+
+
+def tick():
+    global __t0
+    __t0 = time.time()
+
+
+def tock():
+    t = time.time()
+    global __t0
+    diff = t - __t0
+    return diff
