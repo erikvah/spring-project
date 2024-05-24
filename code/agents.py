@@ -85,4 +85,4 @@ if __name__ == "__main__":
 
     X = handler.get_positions()
 
-    utils.plot_and_view_unbiased([X, X_hat], ["Real", "Estimated"], flip_y=[False, False])
+    utils.plot_unbiased([X, X_hat], ["Real", "Estimated"], flip_y=[False, False])

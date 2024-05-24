@@ -46,6 +46,10 @@ def generate_measurements(X, indices, sigmas):
     return measurements
 
 
+def get_distances(X, indices):
+    return generate_measurements(X, indices, np.zeros(indices.shape[0]))
+
+
 def get_unbiased_coords(X, flip):
     mean = X.mean(axis=0)
 
@@ -59,10 +63,9 @@ def plot_points(Xs: list, labels: list):
     s = 50
     for X, label in zip(Xs, labels):
         plt.scatter(X[:, 0], X[:, 1], label=label, marker="x", s=s)
-        s -= 20
 
 
-def plot_and_view_unbiased(Xs: list, labels: list, flip_y: list):
+def plot_unbiased(Xs: list, labels: list, flip_y: list, show: bool = True):
     X_unbiased = []
     for X, label, flip in zip(Xs, labels, flip_y):
         X_unbiased.append(get_unbiased_coords(X, flip))
@@ -70,7 +73,8 @@ def plot_and_view_unbiased(Xs: list, labels: list, flip_y: list):
     plot_points(X_unbiased, labels)
     plt.legend()
     plt.axis("equal")
-    plt.show()
+    if show:
+        plt.show()
 
 
 def tick():

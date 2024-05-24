@@ -145,30 +145,113 @@ class Estimator:
         X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
         return X_star
 
+    def estimate_kruskal(
+        self,
+        indices: np.ndarray,
+        measurements: np.ndarray,
+        sigmas: np.ndarray,
+        init_guess: np.ndarray,
+        max_its: int = 100,
+        eps: float = 0.1,
+    ):
+        m = indices.shape[0]
 
-if __name__ == "__main__":
-    np.random.seed(0)
-    # n = 10
-    # m = n + 20
-    # assert n * (n - 1) >= m, "Too many measurements!"
-    # alpha = 0.0001
-    # sigma = 1
-    # sigmas = np.ones(m) * sigma
+        def get_grads(X, d_hat, indices):
+            """d_hat is measurements"""
+            d = utils.get_distances(X, indices)
+            diff = d - d_hat
+
+            S_star = np.linalg.norm(diff)
+            T_star = np.linalg.norm(d)
+            S = np.sqrt(S_star / T_star)
+
+            grads = np.zeros_like(X)
+
+            for k in range(m):
+                i, j = indices[k, :]
+
+                # g = S * ((d[k] - d_hat[k]) / S_star - d[k] / T_star) * (X[i, :] - X[j, :]) / d[k]
+                g = S * (d[k] - d_hat[k]) * (X[i, :] - X[j, :]) / (d[k] + 1)
+                grads[i, :] += g
+                grads[j, :] -= g
+
+            return grads
+
+        beta = lambda it: 0.1 / np.sqrt(1 + it)
+        d_hat = measurements
+        X = init_guess.copy()
+        # history = [X.copy()]
+
+        for it in range(max_its):
+            grads = get_grads(X, d_hat, indices)
+            step = -grads * beta(it)
+            X = X + step
+
+            if norm(grads) ** 2 < eps:
+                print("Kruskal:", it, "iterations")
+                break
+
+        return X
+
+
+def _main():
+    # n = 4
+    # m = 6
+
+    # alpha = 0.01
+    # sigma = 10
+    # sigmas = np.ones(m) * 0.1
     # threshold = 0.01
     # cholesky_noise = 0.001
-
-    # X = utils.generate_positions(m, n)
-    # indices = utils.generate_indices(m, n)
-    # meas = utils.generate_measurements(X, indices, sigmas)
-
     # params = Params(alpha, threshold, cholesky_noise)
+
+    # X = 100 * np.array([[-1, 0], [1, 0], [0, 1], [0, -1]], dtype=float)
+
+    # inds = np.array([[0, 1], [1, 0], [0, 2], [0, 3], [2, 3], [3, 1]])
+    # sig = sigma * np.ones(m)
+    # _d = utils.get_distances(X, inds)
+    # meas = utils.generate_measurements(X, inds, sig)
+
     # estimator = Estimator(n, params)
+    # estimator.estimate_kruskal(inds, meas, sig, X @ np.array([[3, 4], [2, -3 / 2]]) / 5, 10)
 
-    # X_hat = estimator.estimate_RE_mod(indices, meas, sigmas)
+    # return
+    np.random.seed(105)
+    np.set_printoptions(precision=3, suppress=True)
+    n = 4
+    m = n + 8
+    assert n * (n - 1) >= m, "Too many measurements!"
+    alpha = 0.01
+    sigma = 1
+    sigmas = np.ones(m) * sigma
+    threshold = 0.01
+    cholesky_noise = 0.001
 
-    # X_tilde = utils.get_unbiased_coords(X)
-    # X_tilde_hat = utils.get_unbiased_coords(X_hat)
+    X = utils.generate_positions(n)
+    # X = np.array([[0, 0], [100, 0], [0, 100], [100, 100]])
+    indices = utils.generate_indices(m, n)
+    meas = utils.generate_measurements(X, indices, sigmas)
 
-    # utils.plot_points([X_tilde, X_tilde_hat], ["Real", "Estimate"])
-    # plt.legend()
-    # plt.show()
+    params = Params(alpha, threshold, cholesky_noise)
+    estimator = Estimator(n, params)
+
+    X_hat = estimator.estimate_RE_mod(indices, meas, sigmas)
+
+    X_hat_refined = estimator.estimate_kruskal(
+        indices,
+        meas,
+        sigmas,
+        X + np.random.multivariate_normal(np.zeros(2), 10 * np.eye(2), size=n),
+        1000,
+    )
+
+    utils.plot_unbiased(
+        [X, X_hat, X_hat_refined],
+        ["Real", "Estimate", "Refined"],
+        [False, True, False],
+        show=True,
+    )
+
+
+if __name__ == "__main__":
+    _main()
