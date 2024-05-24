@@ -240,7 +240,7 @@ def main():
 
     X_hat = solve_elevator(indices, measurements, sigmas, m, n, alpha, threshold, cholesky_noise)
 
-    utils.plot_and_view_unbiased([X, X_hat], ["Real", "Estimate"], [False, True])
+    utils.plot_unbiased([X, X_hat], ["Real", "Estimate"], [False, True])
     X_mean = X.mean(axis=0)
     X_hat_mean = X_hat.mean(axis=0)
 

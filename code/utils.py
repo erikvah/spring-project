@@ -6,9 +6,18 @@ import numpy as np
 __t0 = 0
 
 
-def generate_positions(n):
+def generate_random_positions(n):
     X = np.random.uniform(low=(0, 0), high=(1600, 900), size=(n, 2))
 
+    return X
+
+
+def generate_grid(w, h):
+    ws = 1600 * np.arange(w) / w
+    hs = 900 * np.arange(h) / h
+    grid_x, grid_y = np.meshgrid(ws, hs)
+
+    X = np.column_stack((grid_x.flatten(), grid_y.flatten()))
     return X
 
 

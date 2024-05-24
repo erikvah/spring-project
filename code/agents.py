@@ -58,7 +58,7 @@ class AgentHandler:
 if __name__ == "__main__":
     np.random.seed(10)
     n = 50
-    points = utils.generate_positions(n)
+    points = utils.generate_random_positions(n)
     params = np.zeros((n, 8))
     params[:, 0] = 1
     params[:, 3] = np.sqrt(np.arange(n))
