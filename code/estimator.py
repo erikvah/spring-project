@@ -6,8 +6,11 @@ import numpy as np
 import pymanopt
 import scipy
 import scipy.linalg
+import scipy.sparse
 import scipy.sparse as sp
 import utils
+from filterpy.common import Q_discrete_white_noise
+from filterpy.kalman.kalman_filter import KalmanFilter
 from numpy.linalg import norm, pinv
 
 
@@ -26,14 +29,17 @@ class Estimator:
         self._cholesky_noise = params.cholesky_noise
         self._n = n
 
-        # Init manifold optimization
-        self._circle = pymanopt.manifolds.Sphere(2)
-        self._manopt_optimizer = pymanopt.optimizers.SteepestDescent()
+        # self._kf = KalmanFilter(4 * n, 2 * n)  # [x1 dx1 x2 dx2 ...]
+        # self._kf.Q = scipy.sparse.block_diag(
+        #     2 * n * [Q_discrete_white_noise(dim=2, dt=0.5, var=1, order_by_dim=False, block_size=2)]
+        # ).tocsr()
+
+        pass
 
     def estimate_RE(self, indices: np.ndarray, measurements: np.ndarray, sigmas: np.ndarray):
         m, n = indices.shape
 
-        data = np.hstack((np.ones(m), -np.ones(m)))
+        data = np.hstack((-np.ones(m), np.ones(m)))
         rows = np.hstack((np.arange(m), np.arange(m)))
         cols = indices.T.reshape(-1)
         inds = (rows, cols)
@@ -50,13 +56,21 @@ class Estimator:
         Q_2 = -D_tilde_sq @ W @ C @ G_pinv @ C.T @ W
         Λ = cp.Variable((m, m), diag=True)
 
-        obj_dual_sdp = cp.Maximize(cp.trace(Λ))
+        obj_dual_sdp = cp.Maximize(Λ.trace())
 
         cons_dual_sdp = [Q_2 - Λ >> 0]
 
         prob_dual_sdp = cp.Problem(obj_dual_sdp, cons_dual_sdp)  # type:ignore
 
-        prob_dual_sdp.solve("MOSEK", verbose=True)
+        solver_params = {
+            "mosek_params": {
+                "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-12,
+                "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-12,
+                "MSK_DPAR_INTPNT_CO_TOL_NEAR_REL": 1.0,
+                "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-12,
+            }
+        }
+        prob_dual_sdp.solve("MOSEK", verbose=True, **solver_params)
         assert prob_dual_sdp.value != -np.inf
         Λ_star = sp.dia_array(Λ.value)
 
@@ -74,7 +88,7 @@ class Estimator:
 
         V = Vt.T[:, m - r :]
 
-        assert r != 0
+        assert r >= 2
 
         Z_bar = cp.Variable((r, r), PSD=True)
 
@@ -86,19 +100,31 @@ class Estimator:
         prob_primal.solve("MOSEK", verbose=True)
 
         # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
-        Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value).T
+        Y_r_star = (
+            V @ scipy.linalg.cholesky(Z_bar.value + self._cholesky_noise * np.eye(r), lower=True).T
+        )
 
         Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
 
-        @pymanopt.function.autograd(self._circle)
-        def cost_mle(Y):
-            return np.trace(Q_2 @ Y @ Y.T)
+        # Manifold optimization
+        manopt_optimizer = pymanopt.optimizers.ConjugateGradient()
+        manifold = pymanopt.manifolds.Oblique(m=2, n=m)
 
-        prob_mle = pymanopt.Problem(self._circle, cost_mle)
+        @pymanopt.function.numpy(manifold)
+        def cost(Yt):
+            # Y is transposed here (2 x m)
+            return np.trace(Q_2 @ Yt.T @ Yt)
 
-        result_mle = self._manopt_optimizer.run(prob_mle, initial_point=Y_0)
+        @pymanopt.function.numpy(manifold)
+        def grad(Yt):
+            return Yt @ Q_2.T + Yt @ Q_2
+
+        prob_mle = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad)
+        # prob_mle = pymanopt.Problem(manifold, cost=cost)
+
+        result_mle = manopt_optimizer.run(prob_mle, initial_point=Y_0.T)
         p_mle_star = result_mle.cost
-        Y_mle_star = result_mle.point
+        Y_mle_star = result_mle.point.T
         X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
         return X_star
 
@@ -133,15 +159,25 @@ class Estimator:
 
         Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
 
-        @pymanopt.function.autograd(self._circle)
-        def cost_mle(Y):
-            return np.trace(Q_2 @ Y @ Y.T)
+        # Manifold optimization
+        manopt_optimizer = pymanopt.optimizers.ConjugateGradient()
+        manifold = pymanopt.manifolds.Oblique(m=2, n=m)
 
-        prob_mle = pymanopt.Problem(self._circle, cost_mle)
+        @pymanopt.function.numpy(manifold)
+        def cost(Yt):
+            # Y is transposed here (2 x m)
+            return np.trace(Q_2 @ Yt.T @ Yt)
 
-        result_mle = self._manopt_optimizer.run(prob_mle, initial_point=Y_0)
+        @pymanopt.function.numpy(manifold)
+        def grad(Yt):
+            return Yt @ Q_2.T + Yt @ Q_2
+
+        prob_mle = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad)
+        # prob_mle = pymanopt.Problem(manifold, cost=cost)
+
+        result_mle = manopt_optimizer.run(prob_mle, initial_point=Y_0.T)
         p_mle_star = result_mle.cost
-        Y_mle_star = result_mle.point
+        Y_mle_star = result_mle.point.T
         X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
         return X_star
 
@@ -195,62 +231,109 @@ class Estimator:
 
 
 def _main():
-    # n = 4
-    # m = 6
-
-    # alpha = 0.01
-    # sigma = 10
-    # sigmas = np.ones(m) * 0.1
-    # threshold = 0.01
-    # cholesky_noise = 0.001
-    # params = Params(alpha, threshold, cholesky_noise)
-
-    # X = 100 * np.array([[-1, 0], [1, 0], [0, 1], [0, -1]], dtype=float)
-
-    # inds = np.array([[0, 1], [1, 0], [0, 2], [0, 3], [2, 3], [3, 1]])
-    # sig = sigma * np.ones(m)
-    # _d = utils.get_distances(X, inds)
-    # meas = utils.generate_measurements(X, inds, sig)
-
-    # estimator = Estimator(n, params)
-    # estimator.estimate_kruskal(inds, meas, sig, X @ np.array([[3, 4], [2, -3 / 2]]) / 5, 10)
-
-    # return
-    np.random.seed(105)
     np.set_printoptions(precision=3, suppress=True)
-    n = 4
-    m = n + 8
-    assert n * (n - 1) >= m, "Too many measurements!"
-    alpha = 0.01
-    sigma = 1
-    sigmas = np.ones(m) * sigma
-    threshold = 0.01
+    np.random.seed(1213)
+    n = 20
+    m = 200
+
+    alpha = 0.0001
+    sigma = 10
+    sigmas = np.ones(m) * 0.1
+    threshold = 0.03
     cholesky_noise = 0.001
-
-    X = utils.generate_positions(n)
-    # X = np.array([[0, 0], [100, 0], [0, 100], [100, 100]])
-    indices = utils.generate_indices(m, n)
-    meas = utils.generate_measurements(X, indices, sigmas)
-
     params = Params(alpha, threshold, cholesky_noise)
-    estimator = Estimator(n, params)
 
-    X_hat = estimator.estimate_RE_mod(indices, meas, sigmas)
+    # X = 100 * np.array([[0, 0], [1, 0], [0, 1]], dtype=float)
+    # indices = np.array([[0, 1], [0, 2], [1, 2], [2, 1]])
+
+    # X = utils.generate_random_positions(n)
+    X = utils.generate_grid(5, 4) + np.random.multivariate_normal(
+        np.zeros(2), 5 * np.array([[16, 0], [0, 9]]), size=n
+    )
+
+    indices = utils.generate_indices(m, n)
+
+    d_hat = utils.get_distances(X, indices)
+    measurements = utils.generate_measurements(X, indices, sigmas)
+
+    estimator = Estimator(n, params)
+    X_hat = estimator.estimate_RE(indices, measurements, sigmas)
+    # X_tilde = estimator.estimate_RE_mod(indices, measurements, sigmas)
 
     X_hat_refined = estimator.estimate_kruskal(
         indices,
-        meas,
+        measurements,
         sigmas,
-        X + np.random.multivariate_normal(np.zeros(2), 10 * np.eye(2), size=n),
+        X_hat,
         1000,
+    )
+    # plt.scatter(X[:, 0] - X.mean(axis=0)[0], X[:, 1] - X.mean(axis=0)[1], marker="x")
+    # plt.scatter(
+    #     X_hat[:, 0] - X_hat.mean(axis=0)[0], X_hat[:, 1] - X_hat.mean(axis=0)[1], marker="x"
+    # )
+    # # plt.scatter(X_tilde[:, 0] - X_tilde.mean(axis=0)[0], X_tilde[:, 1] - X_tilde.mean(axis=0)[1])
+    # plt.scatter(
+    #     X_hat_refined[:, 0] - X_hat_refined.mean(axis=0)[0],
+    #     X_hat_refined[:, 1] - X_hat_refined.mean(axis=0)[1],
+    #     marker="x",
+    # )
+    # plt.show()
+
+    # utils.plot_unbiased(
+    #     [X, X_hat, X_hat_refined],
+    #     ["Real", "Estimate", "Refined"],
+    #     [False, True, True],
+    #     show=True,
+    # )
+
+    utils.plot_unbiased(
+        [X, X_hat_refined],
+        ["Real", "Estimate"],
+        [False, True],
+        show=True,
     )
 
     utils.plot_unbiased(
-        [X, X_hat, X_hat_refined],
-        ["Real", "Estimate", "Refined"],
-        [False, True, False],
+        [X, X_hat_refined],
+        ["Real", "Estimate"],
+        [False, False],
         show=True,
     )
+    return
+    # np.random.seed(105)
+    # n = 3
+    # m = n
+    # assert n * (n - 1) >= m, "Too many measurements!"
+    # alpha = 0.01
+    # sigma = 1
+    # sigmas = np.ones(m) * sigma
+    # threshold = 0.01
+    # cholesky_noise = 0.001
+
+    # X = utils.generate_positions(n)
+    # # X = np.array([[0, 0], [100, 0], [0, 100], [100, 100]])
+    # indices = utils.generate_indices(m, n)
+    # meas = utils.generate_measurements(X, indices, sigmas)
+
+    # params = Params(alpha, threshold, cholesky_noise)
+    # estimator = Estimator(n, params)
+
+    # X_hat = estimator.estimate_RE_mod(indices, meas, sigmas)
+
+    # X_hat_refined = estimator.estimate_kruskal(
+    #     indices,
+    #     meas,
+    #     sigmas,
+    #     X + np.random.multivariate_normal(np.zeros(2), 10 * np.eye(2), size=n),
+    #     1000,
+    # )
+
+    # utils.plot_unbiased(
+    #     [X, X_hat, X_hat_refined],
+    #     ["Real", "Estimate", "Refined"],
+    #     [False, True, False],
+    #     show=True,
+    # )
 
 
 if __name__ == "__main__":
