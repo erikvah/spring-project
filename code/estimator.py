@@ -251,46 +251,45 @@ def _main():
     cholesky_noise = 0.001
     params = Params(alpha, threshold, cholesky_noise)
 
-    # X = 100 * np.array([[0, 0], [1, 0], [0, 1]], dtype=float)
-    # indices = np.array([[0, 1], [0, 2], [1, 2], [2, 1]])
+    # # X = 100 * np.array([[0, 0], [1, 0], [0, 1]], dtype=float)
+    # # indices = np.array([[0, 1], [0, 2], [1, 2], [2, 1]])
 
-    # X = utils.generate_random_positions(n)
+    # # X = utils.generate_random_positions(n)
     X = utils.generate_grid(4, 3) + np.random.multivariate_normal(
         np.zeros(2), 500 * np.array([[16, 0], [0, 9]], dtype=float), size=n
     )
 
-    N = 12
+    # N = 12
 
-    utils.plot_unbiased(
-        [
-            X
-            @ np.array(
-                [
-                    [np.cos(i * np.pi / 6), -np.sin(i * np.pi / 6)],
-                    [np.sin(i * np.pi / 6), np.cos(i * np.pi / 6)],
-                ]
-            ).T
-            for i in range(N)
-        ],
-        list(range(N)),
-        show=True,
-    )
+    # utils.plot_unbiased(
+    #     [
+    #         X
+    #         @ np.array(
+    #             [
+    #                 [np.cos(i * np.pi / 6), -np.sin(i * np.pi / 6)],
+    #                 [np.sin(i * np.pi / 6), np.cos(i * np.pi / 6)],
+    #             ]
+    #         ).T
+    #         for i in range(N)
+    #     ],
+    #     list(range(N)),
+    #     show=True,
+    # )
 
-    return
+    # return
 
     indices = utils.generate_indices(m, n)
 
-    d_hat = utils.get_distances(X, indices)
     measurements = utils.generate_measurements(X, indices, sigmas)
 
     estimator = Estimator(n, params)
     X_hat, cost, l_bound = estimator.estimate_RE(indices, measurements, sigmas)
-    # X_tilde = estimator.estimate_RE_mod(indices, measurements, sigmas)
 
     theta = 0
     for it in range(20):
+        measurements = utils.generate_measurements(X, indices, sigmas)
         X_hat = estimator.estimate_kruskal(
-            indices, measurements, sigmas, X_hat, 1000, initial_step=0.3
+            indices, measurements, sigmas, X_hat, 1000, initial_step=0.3, verbose=True
         )
         utils.plot_unbiased(
             [X, X_hat],
@@ -298,11 +297,7 @@ def _main():
             show=True,
         )
 
-        theta += 0.1
-
-        R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-
-        X = X @ R.T
+        X += 5 * np.random.multivariate_normal(np.array([1, -3]), np.diag([3, 1]), size=n)
 
     return
     # np.random.seed(105)
