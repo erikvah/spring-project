@@ -194,6 +194,8 @@ class Estimator:
         init_guess: np.ndarray,
         max_its: int = 100,
         eps: float = 0.1,
+        initial_step: float = 0.1,
+        verbose=False,
     ):
         m = indices.shape[0]
 
@@ -213,17 +215,17 @@ class Estimator:
 
                 # g = S * ((d[k] - d_hat[k]) / S_star - d[k] / T_star) * (X[i, :] - X[j, :]) / d[k]
                 g = S * (d[k] - d_hat[k]) * (X[i, :] - X[j, :]) / (d[k] + 1)
-                grads[i, :] += g
-                grads[j, :] -= g
+                grads[i, :] += g / sigmas[k]
+                grads[j, :] -= g / sigmas[k]
 
             return grads
 
-        beta = lambda it: 0.1 / np.sqrt(1 + it)
+        beta = lambda it: initial_step / np.sqrt(1 + it)
         d_hat = measurements
         X = init_guess.copy()
 
         for it in range(max_its):
-            if (it + 1) % 50 == 0:
+            if verbose and (it + 1) % 50 == 0:
                 print(f"Kruskal: Iteration {it+1}")
             grads = get_grads(X, d_hat, indices)
             step = -grads * beta(it)
@@ -239,8 +241,8 @@ class Estimator:
 def _main():
     np.set_printoptions(precision=3, suppress=True)
     np.random.seed(1213)
-    n = 48
-    m = 480
+    n = 12
+    m = 90
 
     alpha = 0.0001
     sigma = 10
@@ -253,9 +255,28 @@ def _main():
     # indices = np.array([[0, 1], [0, 2], [1, 2], [2, 1]])
 
     # X = utils.generate_random_positions(n)
-    X = utils.generate_grid(8, 6) + np.random.multivariate_normal(
+    X = utils.generate_grid(4, 3) + np.random.multivariate_normal(
         np.zeros(2), 500 * np.array([[16, 0], [0, 9]], dtype=float), size=n
     )
+
+    N = 12
+
+    utils.plot_unbiased(
+        [
+            X
+            @ np.array(
+                [
+                    [np.cos(i * np.pi / 6), -np.sin(i * np.pi / 6)],
+                    [np.sin(i * np.pi / 6), np.cos(i * np.pi / 6)],
+                ]
+            ).T
+            for i in range(N)
+        ],
+        list(range(N)),
+        show=True,
+    )
+
+    return
 
     indices = utils.generate_indices(m, n)
 
@@ -266,37 +287,22 @@ def _main():
     X_hat, cost, l_bound = estimator.estimate_RE(indices, measurements, sigmas)
     # X_tilde = estimator.estimate_RE_mod(indices, measurements, sigmas)
 
-    X_hat_refined = estimator.estimate_kruskal(
-        indices,
-        measurements,
-        sigmas,
-        X_hat,
-        1000,
-    )
-    # plt.scatter(X[:, 0] - X.mean(axis=0)[0], X[:, 1] - X.mean(axis=0)[1], marker="x")
-    # plt.scatter(
-    #     X_hat[:, 0] - X_hat.mean(axis=0)[0], X_hat[:, 1] - X_hat.mean(axis=0)[1], marker="x"
-    # )
-    # # plt.scatter(X_tilde[:, 0] - X_tilde.mean(axis=0)[0], X_tilde[:, 1] - X_tilde.mean(axis=0)[1])
-    # plt.scatter(
-    #     X_hat_refined[:, 0] - X_hat_refined.mean(axis=0)[0],
-    #     X_hat_refined[:, 1] - X_hat_refined.mean(axis=0)[1],
-    #     marker="x",
-    # )
-    # plt.show()
+    theta = 0
+    for it in range(20):
+        X_hat = estimator.estimate_kruskal(
+            indices, measurements, sigmas, X_hat, 1000, initial_step=0.3
+        )
+        utils.plot_unbiased(
+            [X, X_hat],
+            ["Real", "Estimate"],
+            show=True,
+        )
 
-    # utils.plot_unbiased(
-    #     [X, X_hat, X_hat_refined],
-    #     ["Real", "Estimate", "Refined"],
-    #     [False, True, True],
-    #     show=True,
-    # )
+        theta += 0.1
 
-    utils.plot_unbiased(
-        [X, X_hat, X_hat_refined],
-        ["Real", "Estimate", "Refined"],
-        show=True,
-    )
+        R = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+
+        X = X @ R.T
 
     return
     # np.random.seed(105)

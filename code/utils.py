@@ -64,12 +64,23 @@ def get_cost(X, indices, measurements, sigmas, alpha):
     return (((alpha / sigmas) / 2) * (distances - measurements) ** 2) @ np.ones_like(sigmas)
 
 
-def get_unbiased_coords(X):
+def get_unbiased_coords(X, old_coords):
     mean = X.mean(axis=0)
 
-    _, _, Vt = np.linalg.svd(X - mean)
+    X_centered = X - mean
 
-    return (X - mean) @ Vt.T
+    _, _, Vt = np.linalg.svd(X_centered)
+
+    new_coords = X_centered @ Vt.T
+
+    prods = old_coords.T @ new_coords
+
+    if prods[0, 0] < 0:
+        new_coords[:, 0] *= -1
+    if prods[1, 1] < 0:
+        new_coords[:, 1] *= -1
+
+    return new_coords
 
 
 def plot_points(Xs: list, labels: list):
@@ -80,8 +91,10 @@ def plot_points(Xs: list, labels: list):
 
 def plot_unbiased(Xs: list, labels: list, show: bool = True):
     X_unbiased = []
-    for X, label in zip(Xs, labels):
-        X_unbiased.append(get_unbiased_coords(X))
+    coords = np.zeros_like(Xs[0])
+    for X in Xs:
+        coords = get_unbiased_coords(X, coords)
+        X_unbiased.append(coords)
 
     plot_points(X_unbiased, labels)
     plt.legend()
