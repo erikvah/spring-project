@@ -59,13 +59,17 @@ def get_distances(X, indices):
     return generate_measurements(X, indices, np.zeros(indices.shape[0]))
 
 
-def get_unbiased_coords(X, flip):
+def get_cost(X, indices, measurements, sigmas, alpha):
+    distances = get_distances(X, indices)
+    return (((alpha / sigmas) / 2) * (distances - measurements) ** 2) @ np.ones_like(sigmas)
+
+
+def get_unbiased_coords(X):
     mean = X.mean(axis=0)
 
-    Q, R = np.linalg.qr((X - mean).T)
-    if flip:
-        R[1, :] *= -1
-    return R.T
+    _, _, Vt = np.linalg.svd(X - mean)
+
+    return (X - mean) @ Vt.T
 
 
 def plot_points(Xs: list, labels: list):
@@ -74,10 +78,10 @@ def plot_points(Xs: list, labels: list):
         plt.scatter(X[:, 0], X[:, 1], label=label, marker="x", s=s)
 
 
-def plot_unbiased(Xs: list, labels: list, flip_y: list, show: bool = True):
+def plot_unbiased(Xs: list, labels: list, show: bool = True):
     X_unbiased = []
-    for X, label, flip in zip(Xs, labels, flip_y):
-        X_unbiased.append(get_unbiased_coords(X, flip))
+    for X, label in zip(Xs, labels):
+        X_unbiased.append(get_unbiased_coords(X))
 
     plot_points(X_unbiased, labels)
     plt.legend()

@@ -29,10 +29,11 @@ class Estimator:
         self._cholesky_noise = params.cholesky_noise
         self._n = n
 
-        # self._kf = KalmanFilter(4 * n, 2 * n)  # [x1 dx1 x2 dx2 ...]
+        self._kf = KalmanFilter(4 * n, 2 * n)  # [x1 dx1 x2 dx2 ...]
         # self._kf.Q = scipy.sparse.block_diag(
         #     2 * n * [Q_discrete_white_noise(dim=2, dt=0.5, var=1, order_by_dim=False, block_size=2)]
         # ).tocsr()
+        # self._kf.R = scipy.sparse.block_diag(n * [np.eye()])
 
         pass
 
@@ -123,12 +124,16 @@ class Estimator:
         # prob_mle = pymanopt.Problem(manifold, cost=cost)
 
         result_mle = manopt_optimizer.run(prob_mle, initial_point=Y_0.T)
-        p_mle_star = result_mle.cost
+        # p_mle_star = result_mle.cost
         Y_mle_star = result_mle.point.T
         X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
-        return X_star
+
+        p_mle_star = utils.get_cost(X_star, indices, measurements, sigmas, self._alpha)
+
+        return X_star, p_mle_star, p_sdp_star
 
     def estimate_RE_mod(self, indices: np.ndarray, measurements: np.ndarray, sigmas: np.ndarray):
+        raise NotImplementedError()
         m, n = indices.shape
 
         data = np.hstack((np.ones(m), -np.ones(m)))
@@ -216,9 +221,10 @@ class Estimator:
         beta = lambda it: 0.1 / np.sqrt(1 + it)
         d_hat = measurements
         X = init_guess.copy()
-        # history = [X.copy()]
 
         for it in range(max_its):
+            if (it + 1) % 50 == 0:
+                print(f"Kruskal: Iteration {it+1}")
             grads = get_grads(X, d_hat, indices)
             step = -grads * beta(it)
             X = X + step
@@ -233,12 +239,12 @@ class Estimator:
 def _main():
     np.set_printoptions(precision=3, suppress=True)
     np.random.seed(1213)
-    n = 20
-    m = 200
+    n = 48
+    m = 480
 
     alpha = 0.0001
     sigma = 10
-    sigmas = np.ones(m) * 0.1
+    sigmas = np.ones(m) * sigma
     threshold = 0.03
     cholesky_noise = 0.001
     params = Params(alpha, threshold, cholesky_noise)
@@ -247,8 +253,8 @@ def _main():
     # indices = np.array([[0, 1], [0, 2], [1, 2], [2, 1]])
 
     # X = utils.generate_random_positions(n)
-    X = utils.generate_grid(5, 4) + np.random.multivariate_normal(
-        np.zeros(2), 5 * np.array([[16, 0], [0, 9]]), size=n
+    X = utils.generate_grid(8, 6) + np.random.multivariate_normal(
+        np.zeros(2), 500 * np.array([[16, 0], [0, 9]], dtype=float), size=n
     )
 
     indices = utils.generate_indices(m, n)
@@ -257,7 +263,7 @@ def _main():
     measurements = utils.generate_measurements(X, indices, sigmas)
 
     estimator = Estimator(n, params)
-    X_hat = estimator.estimate_RE(indices, measurements, sigmas)
+    X_hat, cost, l_bound = estimator.estimate_RE(indices, measurements, sigmas)
     # X_tilde = estimator.estimate_RE_mod(indices, measurements, sigmas)
 
     X_hat_refined = estimator.estimate_kruskal(
@@ -287,18 +293,11 @@ def _main():
     # )
 
     utils.plot_unbiased(
-        [X, X_hat_refined],
-        ["Real", "Estimate"],
-        [False, True],
+        [X, X_hat, X_hat_refined],
+        ["Real", "Estimate", "Refined"],
         show=True,
     )
 
-    utils.plot_unbiased(
-        [X, X_hat_refined],
-        ["Real", "Estimate"],
-        [False, False],
-        show=True,
-    )
     return
     # np.random.seed(105)
     # n = 3
