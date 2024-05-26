@@ -197,28 +197,7 @@ class Estimator:
         initial_step: float = 0.1,
         verbose=False,
     ):
-        m = indices.shape[0]
-
-        def get_grads(X, d_hat, indices):
-            """d_hat is measurements"""
-            d = utils.get_distances(X, indices)
-            diff = d - d_hat
-
-            S_star = np.linalg.norm(diff)
-            T_star = np.linalg.norm(d)
-            S = np.sqrt(S_star / T_star)
-
-            grads = np.zeros_like(X)
-
-            for k in range(m):
-                i, j = indices[k, :]
-
-                # g = S * ((d[k] - d_hat[k]) / S_star - d[k] / T_star) * (X[i, :] - X[j, :]) / d[k]
-                g = S * (d[k] - d_hat[k]) * (X[i, :] - X[j, :]) / (d[k] + 1)
-                grads[i, :] += g / sigmas[k]
-                grads[j, :] -= g / sigmas[k]
-
-            return grads
+        x = init_guess.copy().reshape(-1)  # Convert to vector form
 
         beta = lambda it: initial_step / np.sqrt(1 + it)
         d_hat = measurements
@@ -227,7 +206,7 @@ class Estimator:
         for it in range(max_its):
             if verbose and (it + 1) % 50 == 0:
                 print(f"Kruskal: Iteration {it+1}")
-            grads = get_grads(X, d_hat, indices)
+            grads = self._get_grads(X, d_hat, indices, sigmas)
             step = -grads * beta(it)
             X = X + step
 
@@ -237,12 +216,47 @@ class Estimator:
 
         return X
 
+    def _get_grads(self, X, d_hat, indices, sigmas):
+        # d_hat is measurements
+        d = utils.get_distances(X, indices)
+        diff = d - d_hat
+
+        S_star = np.linalg.norm(diff)
+        T_star = np.linalg.norm(d)
+        S = np.sqrt(S_star / T_star)
+
+        # grads = np.zeros_like(X)
+
+        # for k in range(m):
+        #     i, j = indices[k, :]
+
+        #     # g = S * ((d[k] - d_hat[k]) / S_star - d[k] / T_star) * (X[i, :] - X[j, :]) / d[k]
+        #     g = S * (d[k] - d_hat[k]) * (X[i, :] - X[j, :]) / (d[k] + 1)
+        #     grads[i, :] += g / sigmas[k]
+        #     grads[j, :] -= g / sigmas[k]
+
+        g = (S * (d - d_hat) * (X[indices[:, 0]] - X[indices[:, 1]]).T / (d + 1)).T
+        g = (g.T / sigmas).T  # This is correct
+
+        grads_i = np.zeros_like(X)
+        # Needed to prevent buffering (https://numpy.org/doc/stable/reference/generated/numpy.ufunc.at.html)
+        np.add.at(grads_i, indices[:, 0], g)
+        # grads_i_foo[indices[:, 0], :] += g_foo
+
+        grads_j = np.zeros_like(X)
+        np.add.at(grads_j, indices[:, 1], -g)
+        # grads_j_foo[indices[:, 1], :] -= g_foo
+
+        return grads_i + grads_j
+
+        # return grads
+
 
 def _main():
     np.set_printoptions(precision=3, suppress=True)
     np.random.seed(1213)
-    n = 12
-    m = 90
+    n = 6
+    m = 30
 
     alpha = 0.0001
     sigma = 10
@@ -255,7 +269,7 @@ def _main():
     # # indices = np.array([[0, 1], [0, 2], [1, 2], [2, 1]])
 
     # # X = utils.generate_random_positions(n)
-    X = utils.generate_grid(4, 3) + np.random.multivariate_normal(
+    X = utils.generate_grid(3, 2) + np.random.multivariate_normal(
         np.zeros(2), 500 * np.array([[16, 0], [0, 9]], dtype=float), size=n
     )
 
