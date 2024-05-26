@@ -54,24 +54,37 @@ and where $\W$ is uncorrelated with $\V$, as well as both being uncorrelated wit
 \end{align}
 where $\hat{\theta}_{t \mid t}$ is the Kalman estimate of $\theta_t$ given measurements $\totmeas$.
 
-\subsection{Graph Optimization}
+\subsection{Graph Optimization} \label{sec:graphs}
 % $\exists (i, j) \notin \mathcal{E}$
 The positions of the robots as well as the distance measurements are modeled as a directed graph $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, with $n$ vertices $i \in \mathcal{V}$ and $m$ edges $(i, j) \in \mathcal{E}$. An example configuration is shown in~\ref{fig:problem-graph}.
-\TODO{Update this figure with directed graphs}
 \begin{figure}[ht]
     \centering
     \includegraphics[width=\linewidth,trim=31mm 48mm 106mm 15mm, clip]{graph.pdf}
-    \caption{Problem reformulation. In the figure, we have a graph $\mathcal{G}=(\mathcal{V}, \mathcal{E})$ where the edges $(i, j) \in \mathcal{E}$ have weights $y_{i,j}$ and the vertices $k \in \mathcal{V}$ have positions $\bar{x}_k$.}
+    \caption{Problem reformulation. In the figure, we have a graph $\mathcal{G}=(\mathcal{V}, \mathcal{E})$ where the directed edges $(i, j) \in \mathcal{E}$ have weights $l_{i,j}$ and the vertices $k \in \mathcal{V}$ have positions $x^{(k)}_t$.}
     \label{fig:problem-graph} 
 \end{figure}
-As described in~\ref{sec:lit-rev}, this is a non-convex with no known efficient global solver. However, the Riemannian Elevator~\cite{R_elevator} provides an approximate solution as well as a non-trivial lower bound on the problem which we can use to determine the quality of the solution. Given this, we can approximately solve the localization problem for the initial positions. The estimates can be further refined using gradient descent on the stress minimization problem as described in previous sections. 
+As described in section~\ref{sec:lit-rev}, this is a non-convex with no known efficient global solver. However, the Riemannian Elevator~\cite{R_elevator} provides an approximate solution as well as a non-trivial lower bound on the problem which we can use to determine the quality of the solution. Given this, we can approximately solve the localization problem for the initial positions. The estimates can be further refined using gradient descent on the stress minimization problem as described in previous sections. 
 
-\TODO{Add incidence matrix and measurement matrix description}
+We use the notation defined in table~\ref{tab:notation} below to describe the graph and the data collected from it.
+\FloatBarrier
+\begin{table}[ht]
+    \centering
+    \caption{Additional definitions}
+    \label{tab:notation}
+    \begin{tabularx}{\linewidth}{lX}
+        $\mathbf{J}_t \in \R{m \times 2}$ & 
+        \textit{Connectivity matrix}.  Each row $(i, j)\in\mathcal{E}$ represents a directed edge of the graph. \\
+        $\mathbf{y}_t \in \R{m}$ & 
+        \textit{Measurement vector}. Each row $k$ is the distance measurement between the two nodes at row $k$ in $\mathbf{J}_t$. \\
+        $\bm{\psi}_t \in \R{m}$ &
+        \textit{Noise variance vector}. Each row $k$ is the variance of the noise measurement at row $k$ in $\mathbf{y}_t$. 
+    \end{tabularx}
+\end{table}
 
 \subsection{Coordinate System}
-Any solution to the stress minimization problem, either local or global is not unique. Since the stress function is invariant under translation, rotation, and mirroring, there is no way to determine a coordinate system matching some world coordinates. However, this is not an issue for this problem, as the goal is only to estimate the relative positions of the robots. 
+Any solution to the stress minimization problem, either local or global is not unique. Since the stress function is invariant under translation, rotation, and mirroring, there is no way to determine a coordinate system matching some world coordinates. Therefore, any chosen coordinate system is as valid as any other. Initially, the Riemannian elevator is used to get estimates of the positions of the robots. This initial guess gives us the coordinate system to use in future time steps. However, when tracking the positions over longer a longer time horizon, it probable that the coordinate system will begin to drift. This means that, even though a point may have the same coordinates at two different time steps, $x^{(i)}_t = x^{(i)}_\tau$ for $t \neq \tau$, the real robot might not be at the same position at those two time steps. This is a fundamental limitation of the problem setup, as there is no measurements of the outside world. To remedy this, outside anchors could be provided which would both give a reference coordinate frame, as well as enable other localization algorithms like traditional SLAM. 
 
-Initially, the Riemannian elevator is used to get estimates of the positions of the robots. This initial guess gives us the coordinate system to use in future time steps. 
+Ultimately, these are issues innate to the chosen problem, and even if the relative localization problem was solved globally, they would still persist. As such, we make no effort to solve these as the relative localization problem remains interesting regardless of limitations.
 
 % \subsection{Unbiased Coordinates}
 % Solving the localization problem, be it through the Riemannian Elevator or through stress minimization, is not enough. Since the stress function is invariant under translation, rotation, and mirroring, we need some canonical way of representing coordinates. For this, we use the mean and the SVD of the point list.
@@ -103,9 +116,12 @@ Initially, the Riemannian elevator is used to get estimates of the positions of 
 
 \subsection{Algorithm Description}
 With the content in previous sections, we can now define algorithm~\ref{algo:estimation}, the online estimation algorithm. For conciseness, we define the function $\text{RE}(C, \tilde{D}, W)$ the output of the Riemannian elevator, and $\text{KA}(\hat{\mathbf{x}}_{t \mid t-1}, \mathbf{y}_t, \bm{\psi}_t)$ as the output of gradient descent using Kruskal's algorithm. 
+
+
+
 \begin{algorithm}
     \caption{Online estimation}\label{algo:estimation}
-    \textbf{Inputs:} Connectivity matrix $\mathbf{J}_0$, measurement vector $\mathbf{L}_0$, noise power vector $\bm{\psi}_0$
+    \textbf{Inputs:} Connectivity matrix $\mathbf{J}_0$, measurement vector $\mathbf{y}_0$, noise power vector $\bm{\psi}_0$
     
     \textbf{Initialize:} Get an initial guess
     \begingroup\setstretch{1.2} % Increase line spacing
@@ -128,6 +144,7 @@ With the content in previous sections, we can now define algorithm~\ref{algo:est
         \State $\mathbf{K}_t = \mathbf{P}_{t \mid t-1} \mathbf{H}^\top_t (\mathbf{H}_t \mathbf{P}_{t \mid t-1} \mathbf{H}_t^\top + \mathbf{R}_t)^{-1}$
         \State $\hat{\mathbf{x}}_{t \mid t} = \hat{\mathbf{x}}_{t\mid t-1} + \mathbf{K}_t (\mathbf{z}_t - \mathbf{g}(\hat{\mathbf{x}}_{t \mid t-1}))$
         \State $\mathbf{P}_{t \mid t} = (\mathbf{I} - \mathbf{K}_t \mathbf{H}_t) \mathbf{P}_{t \mid t-1}$
+        \Statex \underline{Repeat}: Go to \underline{Predict}
     \end{algorithmic}
     \endgroup
 \end{algorithm}
