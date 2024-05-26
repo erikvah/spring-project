@@ -15,15 +15,19 @@ from numpy.linalg import norm, pinv
 
 
 @dataclass
-class Params:
-    alpha: float
-    threshold_frac: float
-    cholesky_noise: float
+class EstimatorParams:
+    alpha: float  # Scaling in RE
+    threshold_frac: float  # Singular values cutoff threshold
+    cholesky_noise: float  # Noise to enable stable Cholesky fac
+
+
+def get_default_params():
+    return EstimatorParams(1, 0.01, 0.01)
 
 
 class Estimator:
 
-    def __init__(self, n: int, params: Params):
+    def __init__(self, n: int, params: EstimatorParams):
         self._alpha = params.alpha
         self._threshold_frac = params.threshold_frac
         self._cholesky_noise = params.cholesky_noise
@@ -101,9 +105,7 @@ class Estimator:
         prob_primal.solve("MOSEK", verbose=True)
 
         # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
-        Y_r_star = (
-            V @ scipy.linalg.cholesky(Z_bar.value + self._cholesky_noise * np.eye(r), lower=True).T
-        )
+        Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value + self._cholesky_noise * np.eye(r), lower=True).T
 
         Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
 
@@ -186,7 +188,7 @@ class Estimator:
         X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
         return X_star
 
-    def estimate_kruskal(
+    def estimate_gradient(
         self,
         indices: np.ndarray,
         measurements: np.ndarray,
@@ -196,6 +198,7 @@ class Estimator:
         eps: float = 1e-3,
         init_step: float = 0.1,
         verbose=False,
+        kruskal=True,
     ):
         d_hat = measurements
         X = init_guess.copy()
@@ -206,6 +209,8 @@ class Estimator:
         grads = np.zeros_like(X)
         grads_prev = np.zeros_like(X)
 
+        its_taken = max_its
+
         for it in range(max_its):
             if verbose and (it + 1) % 50 == 0:
                 print(f"Kruskal: Iteration {it+1}")
@@ -213,28 +218,33 @@ class Estimator:
             costs[it] = utils.get_cost(X, indices, d_hat, sigmas, self._alpha)
             grads[:, :] = self._get_grads(X, d_hat, indices, sigmas)
 
-            if it > 0:
-                step_size = self._get_step(
-                    step_size,
-                    grads,
-                    grads_prev,
-                    costs[it],
-                    costs[max(0, it - 1)],
-                    costs[max(0, it - 5)],
-                )
+            if kruskal:
+                if it > 0:
+                    step_size = self._get_step_kruskal(
+                        step_size,
+                        grads,
+                        grads_prev,
+                        costs[it],
+                        costs[max(0, it - 1)],
+                        costs[max(0, it - 5)],
+                    )
+            else:
+                step_size = 1 / np.sqrt(1 + it)
 
             grads_prev[:, :] = grads
 
             step = -grads * step_size
             X = X + step
 
-            if norm(grads) ** 2 < eps:
-                print("Kruskal:", it, "iterations")
+            if norm(grads) < eps:
+                # if norm(grads) ** 2 < eps:
+                print("Kruskal early finish:", it, "iterations")
+                its_taken = it
                 break
 
-        return X
+        return X, costs[:its_taken]
 
-    def _get_step(self, step_prev, g, g_prev, cost, cost_prev, cost_5prev):
+    def _get_step_kruskal(self, step_prev, g, g_prev, cost, cost_prev, cost_5prev):
         # Angle factor
         g_vec = g.reshape(-1)
         g_prev_vec = g_prev.reshape(-1)
@@ -300,7 +310,7 @@ def _main():
     sigmas = np.ones(m) * sigma
     threshold = 0.03
     cholesky_noise = 0.001
-    params = Params(alpha, threshold, cholesky_noise)
+    params = EstimatorParams(alpha, threshold, cholesky_noise)
 
     # # X = 100 * np.array([[0, 0], [1, 0], [0, 1]], dtype=float)
     # # indices = np.array([[0, 1], [0, 2], [1, 2], [2, 1]])
@@ -339,9 +349,7 @@ def _main():
     theta = 0
     for it in range(20):
         measurements = utils.generate_measurements(X, indices, sigmas)
-        X_hat = estimator.estimate_kruskal(
-            indices, measurements, sigmas, X_hat, 50, init_step=0.3, verbose=True
-        )
+        X_hat, _ = estimator.estimate_gradient(indices, measurements, sigmas, X_hat, 50, init_step=0.3, verbose=True)
         utils.plot_unbiased(
             [X, X_hat],
             ["Real", "Estimate"],
