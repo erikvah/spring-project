@@ -193,21 +193,39 @@ class Estimator:
         sigmas: np.ndarray,
         init_guess: np.ndarray,
         max_its: int = 100,
-        eps: float = 0.1,
-        initial_step: float = 0.1,
+        eps: float = 1e-3,
+        init_step: float = 0.1,
         verbose=False,
     ):
-        x = init_guess.copy().reshape(-1)  # Convert to vector form
-
-        beta = lambda it: initial_step / np.sqrt(1 + it)
         d_hat = measurements
         X = init_guess.copy()
+
+        costs = np.zeros(max_its)
+
+        step_size = init_step
+        grads = np.zeros_like(X)
+        grads_prev = np.zeros_like(X)
 
         for it in range(max_its):
             if verbose and (it + 1) % 50 == 0:
                 print(f"Kruskal: Iteration {it+1}")
-            grads = self._get_grads(X, d_hat, indices, sigmas)
-            step = -grads * beta(it)
+
+            costs[it] = utils.get_cost(X, indices, d_hat, sigmas, self._alpha)
+            grads[:, :] = self._get_grads(X, d_hat, indices, sigmas)
+
+            if it > 0:
+                step_size = self._get_step(
+                    step_size,
+                    grads,
+                    grads_prev,
+                    costs[it],
+                    costs[max(0, it - 1)],
+                    costs[max(0, it - 5)],
+                )
+
+            grads_prev[:, :] = grads
+
+            step = -grads * step_size
             X = X + step
 
             if norm(grads) ** 2 < eps:
@@ -215,6 +233,25 @@ class Estimator:
                 break
 
         return X
+
+    def _get_step(self, step_prev, g, g_prev, cost, cost_prev, cost_5prev):
+        # Angle factor
+        g_vec = g.reshape(-1)
+        g_prev_vec = g_prev.reshape(-1)
+
+        cos_theta = g_vec @ g_prev_vec / (norm(g_vec) * norm(g_prev_vec))
+
+        step_angle = 4.0 ** (cos_theta**3)
+
+        # Relaxation factor
+        ratio_5_step = min(1, cost / cost_5prev)
+
+        step_relax = 1.3 / (1 + ratio_5_step**5)
+
+        # Good luck factor
+        step_good_luck = min(1, cost / cost_prev)
+
+        return step_prev * step_angle * step_relax * step_good_luck
 
     def _get_grads(self, X, d_hat, indices, sigmas):
         # d_hat is measurements
@@ -303,7 +340,7 @@ def _main():
     for it in range(20):
         measurements = utils.generate_measurements(X, indices, sigmas)
         X_hat = estimator.estimate_kruskal(
-            indices, measurements, sigmas, X_hat, 1000, initial_step=0.3, verbose=True
+            indices, measurements, sigmas, X_hat, 50, init_step=0.3, verbose=True
         )
         utils.plot_unbiased(
             [X, X_hat],
