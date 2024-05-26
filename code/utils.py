@@ -103,6 +103,10 @@ def plot_unbiased(Xs: list, labels: list, show: bool = True):
         plt.show()
 
 
+def generate_sigmas(m, max=10):
+    return np.random.uniform(0.1, max, size=m)
+
+
 def tick():
     global __t0
     __t0 = time.time()

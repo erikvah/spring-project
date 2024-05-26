@@ -24,12 +24,8 @@ class AgentHandler:
 
         A = self._agent_params[:, :3]
         Ω = self._agent_params[:, 3:6]
-        self._positions[:, 0] = self._init_positions[:, 0] + (A * np.cos(Ω * self._t)) @ np.ones(
-            self._n
-        )
-        self._positions[:, 1] = self._init_positions[:, 1] + (A * np.sin(Ω * self._t)) @ np.ones(
-            self._n
-        )
+        self._positions[:, 0] = self._init_positions[:, 0] + (A * np.cos(Ω * self._t)) @ np.ones(self._n)
+        self._positions[:, 1] = self._init_positions[:, 1] + (A * np.sin(Ω * self._t)) @ np.ones(self._n)
 
     def get_measurements(self):
         indices = []
@@ -53,36 +49,3 @@ class AgentHandler:
 
     def get_positions(self):
         return self._positions
-
-
-if __name__ == "__main__":
-    np.random.seed(10)
-    n = 50
-    points = utils.generate_random_positions(n)
-    params = np.zeros((n, 8))
-    params[:, 0] = 1
-    params[:, 3] = np.sqrt(np.arange(n))
-    params[:, 6] = np.ones(n)
-    params[:, 7] = 500
-    handler = AgentHandler(points, params, n)
-
-    alpha = 0.01
-    threshold_frac = 0.02
-    cholesky_noise = 0.001
-
-    e_params = estimator.Params(alpha, threshold_frac, cholesky_noise)
-
-    est = estimator.Estimator(n, e_params)
-
-    indices, measurements, sigmas = handler.get_measurements()
-
-    m = indices.shape[0]
-
-    print(f"{n = }, {m = }")
-
-    # X_hat = est.estimate_RE_mod(indices, measurements, sigmas)
-    X_hat = est.estimate_RE(indices, measurements, sigmas)
-
-    X = handler.get_positions()
-
-    utils.plot_unbiased([X, X_hat], ["Real", "Estimated"], flip_y=[False, False])
