@@ -40,7 +40,7 @@ where
     \W &\sim \text{GWN} (0, \Q) \\
     \V &\sim \text{GWN} (0, \R) 
 \end{align}
-and where $\W$ is uncorrelated with $\V$, as well as both being uncorrelated with noise in different robots. By linearizing $f$, we get the EKF Jacobian matrices
+and where $\W$ is uncorrelated with $\V$, as well as both being uncorrelated with noise in different robots. By linearizing $f$, we get the Jacobian matrices needed by the EKF:
 \begin{align}
     \mathbf{F}_t &=\begin{bmatrix}
         1 & 0 & -\Delta t v_{t} \sin(\hat{\theta}_{t \mid t}) \\
