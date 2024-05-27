@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from warnings import warn
 
 import cvxpy as cp
 import matplotlib.pyplot as plt
@@ -22,7 +23,7 @@ class EstimatorParams:
 
 
 def get_default_params():
-    return EstimatorParams(1, 0.01, 0.01)
+    return EstimatorParams(1, 0.05, 0.01)
 
 
 class Estimator:
@@ -95,17 +96,29 @@ class Estimator:
 
         assert r >= 2
 
-        Z_bar = cp.Variable((r, r), PSD=True)
+        if r >= 2:
+            Z_bar = cp.Variable((r, r), PSD=True)
 
-        obj_primal = cp.Minimize(cp.square(cp.norm2(cp.diag(V @ Z_bar @ V.T) - np.ones(m))))
+            obj_primal = cp.Minimize(cp.square(cp.norm2(cp.diag(V @ Z_bar @ V.T) - np.ones(m))))
 
-        cons_primal = []
+            cons_primal = []
 
-        prob_primal = cp.Problem(obj_primal, cons_primal)
-        prob_primal.solve("MOSEK", verbose=True)
+            prob_primal = cp.Problem(obj_primal, cons_primal)
+            prob_primal.solve("MOSEK", verbose=True)
 
-        # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
-        Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value + self._cholesky_noise * np.eye(r), lower=True).T
+            # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
+            Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value + self._cholesky_noise * np.eye(r), lower=True).T
+        else:
+            Z = cp.Variable((m, m), PSD=True)
+
+            obj_primal = cp.Minimize(cp.trace(Q_2 @ Z))
+
+            cons_primal = [cp.diag(Z) == 1]
+
+            prob_primal = cp.Problem(obj_primal, cons_primal)  # type:ignore
+            prob_primal.solve("MOSEK", verbose=True)
+
+            Y_r_star = scipy.linalg.cholesky(Z.value + self._cholesky_noise * np.eye(m), lower=True).T
 
         Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
 
@@ -199,7 +212,10 @@ class Estimator:
         init_step: float = 0.1,
         verbose=False,
         kruskal=True,
+        l_bound=0,
     ):
+        l_bound = max(0, l_bound)
+        m = sigmas.shape[0]
         d_hat = measurements
         X = init_guess.copy()
 
@@ -236,9 +252,15 @@ class Estimator:
             step = -grads * step_size
             X = X + step
 
-            if norm(grads) < eps:
+            if norm(grads) < eps * m:
                 # if norm(grads) ** 2 < eps:
-                print("Kruskal early finish:", it, "iterations")
+                print("Finished after", it, "iterations; gradient is zero")
+                its_taken = it
+                break
+
+            if costs[it] - l_bound < 10 * eps * m:
+                # if norm(grads) ** 2 < eps:
+                print("Finished after", it, "iterations; lower bound achieved")
                 its_taken = it
                 break
 
@@ -272,18 +294,8 @@ class Estimator:
         T_star = np.linalg.norm(d)
         S = np.sqrt(S_star / T_star)
 
-        # grads = np.zeros_like(X)
-
-        # for k in range(m):
-        #     i, j = indices[k, :]
-
-        #     # g = S * ((d[k] - d_hat[k]) / S_star - d[k] / T_star) * (X[i, :] - X[j, :]) / d[k]
-        #     g = S * (d[k] - d_hat[k]) * (X[i, :] - X[j, :]) / (d[k] + 1)
-        #     grads[i, :] += g / sigmas[k]
-        #     grads[j, :] -= g / sigmas[k]
-
         g = (S * (d - d_hat) * (X[indices[:, 0]] - X[indices[:, 1]]).T / (d + 1)).T
-        g = (g.T / sigmas).T  # This is correct
+        g = (g.T / sigmas).T
 
         grads_i = np.zeros_like(X)
         # Needed to prevent buffering (https://numpy.org/doc/stable/reference/generated/numpy.ufunc.at.html)
@@ -296,8 +308,6 @@ class Estimator:
 
         return grads_i + grads_j
 
-        # return grads
-
 
 def _main():
     np.set_printoptions(precision=3, suppress=True)
@@ -307,7 +317,7 @@ def _main():
 
     alpha = 0.0001
     sigma = 10
-    sigmas = np.ones(m) * sigma
+    sigmas = np.ones(m, dtype=float) * sigma
     threshold = 0.03
     cholesky_noise = 0.001
     params = EstimatorParams(alpha, threshold, cholesky_noise)
@@ -339,26 +349,6 @@ def _main():
 
     # return
 
-    indices = utils.generate_indices(m, n)
-
-    measurements = utils.generate_measurements(X, indices, sigmas)
-
-    estimator = Estimator(n, params)
-    X_hat, cost, l_bound = estimator.estimate_RE(indices, measurements, sigmas)
-
-    theta = 0
-    for it in range(20):
-        measurements = utils.generate_measurements(X, indices, sigmas)
-        X_hat, _ = estimator.estimate_gradient(indices, measurements, sigmas, X_hat, 50, init_step=0.3, verbose=True)
-        utils.plot_unbiased(
-            [X, X_hat],
-            ["Real", "Estimate"],
-            show=True,
-        )
-
-        X += 5 * np.random.multivariate_normal(np.array([1, -3]), np.diag([3, 1]), size=n)
-
-    return
     # np.random.seed(105)
     # n = 3
     # m = n

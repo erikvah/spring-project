@@ -48,9 +48,7 @@ def generate_indices(m, n):
 
 
 def generate_measurements(X, indices, sigmas):
-    measurements = np.linalg.norm(X[indices[:, 0]] - X[indices[:, 1]], axis=1) + np.random.normal(
-        scale=sigmas
-    )
+    measurements = np.linalg.norm(X[indices[:, 0]] - X[indices[:, 1]], axis=1) + np.random.normal(scale=sigmas)
 
     return measurements
 
@@ -83,27 +81,56 @@ def get_unbiased_coords(X, old_coords):
     return new_coords
 
 
-def plot_points(Xs: list, labels: list):
-    s = 50
-    for X, label in zip(Xs, labels):
-        plt.scatter(X[:, 0], X[:, 1], label=label, marker="x", s=s)
+def plot_points(Xs: list, labels: list, markers, sizes, colors, ax):
+    for X, label, marker, size, color in zip(Xs, labels, markers, sizes, colors):
+        ax.scatter(X[:, 0], X[:, 1], label=label, marker=marker, s=size, c=color)
 
 
-def plot_unbiased(Xs: list, labels: list, show: bool = True):
+def plot_unbiased(
+    ax,
+    Xs: list,
+    labels: list,
+    markers=None,
+    sizes=None,
+    colors=None,
+):
     X_unbiased = []
     coords = np.zeros_like(Xs[0])
+
+    if markers is None:
+        markers = len(Xs) * ["x"]
+
+    if sizes is None:
+        sizes = len(Xs) * [50]
+
+    if colors is None:
+        colors = ["C" + str(i + 1) for i in range(len(Xs))]
+
     for X in Xs:
         coords = get_unbiased_coords(X, coords)
         X_unbiased.append(coords)
 
-    plot_points(X_unbiased, labels)
-    plt.legend()
-    plt.axis("equal")
-    if show:
-        plt.show()
+    plot_points(X_unbiased, labels, markers, sizes, colors, ax)
+
+    return X_unbiased
 
 
-def generate_sigmas(m, max=10):
+def plot_measurements(Xs, indices, labels, colors, ax):
+    m = indices.shape[0]
+
+    for X, color, label in zip(Xs, colors, labels):
+        for k in range(m):
+            x0, y0 = X[indices[k, 0], :]
+            x1, y1 = X[indices[k, 1], :]
+            if k == 0:
+                ax.plot((x0, x1), (y0, y1), color=color, label=label, linestyle=":", linewidth=1)
+                # ax.arrow(x0, y0, x1 - x0, y1 - y0, ec=color, fc=color, label=label, head_width=0.1, head_length=0.1)
+            else:
+                ax.plot((x0, x1), (y0, y1), color=color, linestyle=":", linewidth=1)
+                # ax.arrow(x0, y0, x1 - x0, y1 - y0, ec=color, fc=color, head_width=0.1, head_length=0.1)
+
+
+def generate_sigmas(m, max=10.0):
     return np.random.uniform(0.1, max, size=m)
 
 

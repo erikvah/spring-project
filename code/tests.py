@@ -12,11 +12,6 @@ def run_kruskal_tests():
     # grids = [(2, 2), (5, 4)]
     grids = [(10, 5)]
 
-    # plt.style.use("fivethirtyeight")
-    plt.style.use("bmh")
-
-    # ['Solarize_Light2', '_classic_test_patch', '_mpl-gallery', '_mpl-gallery-nogrid', 'bmh', 'classic', 'dark_background', 'fast', 'fivethirtyeight', 'ggplot', 'grayscale', 'seaborn-v0_8', 'seaborn-v0_8-bright', 'seaborn-v0_8-colorblind', 'seaborn-v0_8-dark', 'seaborn-v0_8-dark-palette', 'seaborn-v0_8-darkgrid', 'seaborn-v0_8-deep', 'seaborn-v0_8-muted', 'seaborn-v0_8-notebook', 'seaborn-v0_8-paper', 'seaborn-v0_8-pastel', 'seaborn-v0_8-poster', 'seaborn-v0_8-talk', 'seaborn-v0_8-ticks', 'seaborn-v0_8-white', 'seaborn-v0_8-whitegrid', 'tableau-colorblind10']
-
     for it, (n, grid) in enumerate(zip(ns, grids)):
         for m in ms[it]:
             trial_kruskal, trial_naive = kruskal_test(m, n, 5, *grid)
@@ -96,6 +91,75 @@ def kruskal_test(m, n, N, w, h):
     return cost_hists_kruskal, cost_hists_naive
 
 
+def run_RE_tests():
+    np.random.seed(3141)
+    ns = [4, 10]
+    ms = [[5, 11], [40, 85]]
+    grids = [(2, 2), (5, 2)]
+
+    # ns = [4]
+    # ms = [[11]]
+    # grids = [(2, 2)]
+
+    for it, (n, grid) in enumerate(zip(ns, grids)):
+        for m in ms[it]:
+            X, X_hat, X_hat_refined, indices = RE_test(m, n, *grid)
+
+            fig = plt.figure(figsize=(8, 6))
+            ax = fig.gca()
+
+            X_unbiased = utils.plot_unbiased(
+                ax,
+                [X, X_hat, X_hat_refined],
+                [None, None, None],
+                markers=["x", "+", "+"],
+                sizes=[0, 0, 0],
+                colors=["C2", "C3", "C1"],
+            )
+
+            utils.plot_measurements(X_unbiased, indices, ["Real", "Estimate", "Refined"], ["C2", "C3", "C1"], ax)
+
+            X_unbiased = utils.plot_unbiased(
+                ax,
+                [X, X_hat, X_hat_refined],
+                ["Real", "Estimate", "Refined"],
+                markers=["x", "+", "+"],
+                sizes=[200, 200, 200],
+                colors=["C2", "C3", "C1"],
+            )
+
+            ax.set_title(f"Point estimation (${m = }$, ${n = }$)")
+            plt.legend()
+            plt.show()
+
+
+def RE_test(m, n, w, h):
+    assert n * (n - 1) >= m, "Too many measurements!"
+
+    X_pos_noise = np.random.multivariate_normal(np.zeros(2), 100**2 * np.eye(2), size=n)
+    X = utils.generate_grid(w, h) + X_pos_noise
+    indices = utils.generate_indices(m, n)
+    sigmas = utils.generate_sigmas(m, max=10)
+    Y = utils.generate_measurements(X, indices, sigmas)
+
+    params = get_default_params()
+    estimator = Estimator(n, params)
+
+    X_hat, cost_re, l_bound = estimator.estimate_RE(indices, Y, sigmas)
+
+    X_hat_refined, cost_k = estimator.estimate_gradient(indices, Y, sigmas, X_hat, l_bound=l_bound)
+
+    # utils.plot_unbiased(
+    #     [X, X_hat, X_hat_refined],
+    #     ["Real", "Estimate", "Refined"],
+    #     show=True,
+    # )
+
+    return X, X_hat, X_hat_refined, indices
+
+
 if __name__ == "__main__":
-    run_kruskal_tests()
-    # kruskal_test(12, 4, 5, 2, 2)
+    plt.style.use("bmh")
+    np.seterr("raise")
+    # run_kruskal_tests()
+    run_RE_tests()
