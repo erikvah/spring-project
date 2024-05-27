@@ -5,12 +5,13 @@ from estimator import Estimator, get_default_params
 
 
 def run_kruskal_tests():
-    ns = [4, 20]
-    ns = [50]
-    # ms = [[6, 12], [200, 380]]
-    ms = [[200, 500]]
+    np.random.seed(578)
+    ns = [4, 10]
+    # ns = [50]
+    ms = [[5, 11], [40, 85]]
+    # ms = [[200, 500]]
     # grids = [(2, 2), (5, 4)]
-    grids = [(10, 5)]
+    grids = [(2, 2), (5, 2)]
 
     for it, (n, grid) in enumerate(zip(ns, grids)):
         for m in ms[it]:
@@ -48,8 +49,12 @@ def run_kruskal_tests():
             ax_n.set_title(f"Target tracking with gradient descent (${m = }, {n = }$)")
             ax_n.legend([f"$\\frac{{1}}{{\\sqrt{{k}}}}$ cost", "Robots move"])
             ax_n.set_yscale("log")
+            ax_n.set_xlabel("Iterations")
+            ax_n.set_ylabel("Stress")
             ax_k.legend(["Kruskal cost", "Robots move"])
             ax_k.set_yscale("log")
+            ax_k.set_xlabel("Iterations")
+            ax_k.set_ylabel("Stress")
             plt.show()
 
     # for cost_hist in cost_hists:
@@ -57,7 +62,6 @@ def run_kruskal_tests():
 
 
 def kruskal_test(m, n, N, w, h):
-    np.random.seed(m * n)
     params = get_default_params()
     estimator = Estimator(n, params)
 
@@ -71,8 +75,11 @@ def kruskal_test(m, n, N, w, h):
     cost_hists_kruskal = []
     cost_hists_naive = []
 
+    speed = np.random.multivariate_normal(np.zeros(2), 100 * np.eye(2), size=n)
+
     for it in range(N):
-        X += np.random.multivariate_normal(np.zeros(2), 100 * np.eye(2), size=n)
+        # X += np.random.multivariate_normal(np.zeros(2), np.eye(2), size=n)
+        X += speed
         indices = utils.generate_indices(m, n)
         Y = utils.generate_measurements(X, indices, sigmas)
 
@@ -86,7 +93,18 @@ def kruskal_test(m, n, N, w, h):
         cost_hists_kruskal.append(cost_hist_kruskal)
         cost_hists_naive.append(cost_hist_naive)
 
-    # return [item for sublist in two_d_list for item in sublist]]
+    fig = plt.figure()
+    ax = fig.gca()
+    utils.plot_points(
+        [X, X_hat_kruskal, X_hat_naive],
+        ["Real", "Kruskal", "Naive"],
+        markers=3 * ["x"],
+        sizes=3 * [100],
+        colors=["C1", "C2", "C3"],
+        ax=ax,
+    )
+    plt.legend()
+    plt.show()
 
     return cost_hists_kruskal, cost_hists_naive
 
@@ -165,5 +183,5 @@ def RE_test(m, n, w, h):
 if __name__ == "__main__":
     plt.style.use("bmh")
     np.seterr("raise")
-    # run_kruskal_tests()
-    run_RE_tests()
+    run_kruskal_tests()
+    # run_RE_tests()

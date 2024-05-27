@@ -1,0 +1,34 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{bbm}
+\usepackage{minted}
+\usepackage{svg}
+\usepackage{pdfpages}
+\usepackage{placeins}
+\usepackage[a4paper, width={6in}]{geometry}
+
+
+\begin{document}
+
+\begin{align*}
+    C&\in \mathbf{R}^{m \times n} 
+    &&
+    \text{Incidence matrix. For edge $e_k = (i, j)$ we have $C_ki = -1$ and $C_kj = 1$. (Page 4)} 
+    \\
+    \tilde{D} &\in diag(\mathbf{R}^{m \times m} )
+    &&
+    \text{Measurement matrix. Contains measured distances on diagonal. THIS MIGHT BE WRONG? Maybe this is PSD, not diag somehow? (Page 5)}
+    \\ 
+    \bar{W} &\in \mathbf{R}^{m \times m}
+    &&
+    \bar{W}_{ij} = \frac{\alpha}{\sigma_{ij}^2} \text{ for all $(n, n) \in \mathcal{E}$ for some $\alpha \in \mathbf{R}$. (page 4)}
+    \\
+    W &\in diag(\mathbf{R}^{m \times m})
+    &&
+    \text{Contains $w_{ij}$ on diagonal (page 5)}
+\end{align*}
+
+
+\end{document}
