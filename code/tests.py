@@ -138,9 +138,13 @@ def RE_test(m, n, w, h):
 
     X_pos_noise = np.random.multivariate_normal(np.zeros(2), 100**2 * np.eye(2), size=n)
     X = utils.generate_grid(w, h) + X_pos_noise
-    indices = utils.generate_indices(m, n)
     sigmas = utils.generate_sigmas(m, max=10)
+    indices = utils.generate_indices(m, n)
     Y = utils.generate_measurements(X, indices, sigmas)
+
+    # max_r = 1000
+    # max_sigma = 50
+    # Y, indices, sigmas = utils.generate_realistic_measurements(X, max_r, max_sigma)
 
     params = get_default_params()
     estimator = Estimator(n, params)

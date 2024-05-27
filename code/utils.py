@@ -53,6 +53,24 @@ def generate_measurements(X, indices, sigmas):
     return measurements
 
 
+def generate_realistic_measurements(X, max_r, max_sigma):
+    n = X.shape[0]
+    m = n * (n - 1)
+    indices = generate_indices(m, n)
+    d = get_distances(X, indices)
+
+    legal = np.where(d <= max_r)[0]
+
+    indices = indices[legal, :]
+    m = indices.shape[0]
+
+    sigmas = generate_sigmas(m, max_sigma)
+
+    Y = generate_measurements(X, indices, sigmas)
+
+    return Y, indices, sigmas
+
+
 def get_distances(X, indices):
     return generate_measurements(X, indices, np.zeros(indices.shape[0]))
 
