@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import cvxpy as cp
+import matplotlib.pyplot as plt
 import numpy as np
 import pymanopt
 import scipy
@@ -21,7 +22,7 @@ class EstimatorParams:
 
 
 def get_default_params():
-    return EstimatorParams(1, 0.05, 0.01)
+    return EstimatorParams(1, 0.1, 0.01)
 
 
 class Estimator:
@@ -88,13 +89,8 @@ class Estimator:
 
         r = m - R_rank
 
-        print(f"Found {r = }")
-
-        V = Vt.T[:, m - r :]
-
-        assert r >= 2
-
         if r >= 2:
+            V = Vt.T[:, m - r :]
             Z_bar = cp.Variable((r, r), PSD=True)
 
             obj_primal = cp.Minimize(cp.square(cp.norm2(cp.diag(V @ Z_bar @ V.T) - np.ones(m))))
@@ -107,21 +103,22 @@ class Estimator:
             # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
             Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value + self._cholesky_noise * np.eye(r), lower=True).T
         else:
-            Z = cp.Variable((m, m), PSD=True)
+            # Z = cp.Variable((m, m), PSD=True)
 
-            obj_primal = cp.Minimize(cp.trace(Q_2 @ Z))
+            # obj_primal = cp.Minimize(cp.trace(Q_2 @ Z))
 
-            cons_primal = [cp.diag(Z) == 1]
+            # cons_primal = [cp.diag(Z) == 1]
 
-            prob_primal = cp.Problem(obj_primal, cons_primal)  # type:ignore
-            prob_primal.solve("MOSEK", verbose=True)
+            # prob_primal = cp.Problem(obj_primal, cons_primal)  # type:ignore
+            # prob_primal.solve("MOSEK", verbose=True)
 
-            Y_r_star = scipy.linalg.cholesky(Z.value + self._cholesky_noise * np.eye(m), lower=True).T
+            # Y_r_star = scipy.linalg.cholesky(Z.value + self._cholesky_noise * np.eye(m))
+            Z = prob_dual_sdp.solution.dual_vars.popitem()[1]
+            Y_r_star = scipy.linalg.cholesky(Z + self._cholesky_noise * np.eye(m), lower=True)
 
         Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
 
         # Manifold optimization
-        manopt_optimizer = pymanopt.optimizers.ConjugateGradient()
         manifold = pymanopt.manifolds.Oblique(m=2, n=m)
 
         @pymanopt.function.numpy(manifold)
@@ -133,12 +130,20 @@ class Estimator:
         def grad(Yt):
             return Yt @ Q_2.T + Yt @ Q_2
 
-        prob_mle = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad)
-        # prob_mle = pymanopt.Problem(manifold, cost=cost)
+        @pymanopt.function.numpy(manifold)
+        def hess(Yt, H):
+            return H @ (Q_2.T + Q_2)
 
+        # manopt_optimizer_rtr = pymanopt.optimizers.TrustRegions()
+        # prob_mle_rtr = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad, euclidean_hessian=hess)
+        # result_mle_rtr = manopt_optimizer_rtr.run(prob_mle_rtr, initial_point=Y_0.T)
+        # Y_mle_star = result_mle_rtr.point.T
+
+        manopt_optimizer = pymanopt.optimizers.ConjugateGradient()
+        prob_mle = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad)
         result_mle = manopt_optimizer.run(prob_mle, initial_point=Y_0.T)
-        # p_mle_star = result_mle.cost
         Y_mle_star = result_mle.point.T
+
         X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
 
         p_mle_star = utils.get_cost(X_star, indices, measurements, sigmas, self._alpha)
@@ -308,79 +313,33 @@ class Estimator:
 
 
 def _main():
-    np.set_printoptions(precision=3, suppress=True)
+    np.set_printoptions(
+        precision=3,
+        suppress=True,
+    )
     np.random.seed(1213)
-    n = 6
-    m = 30
-
-    alpha = 0.0001
-    sigma = 10
-    sigmas = np.ones(m, dtype=float) * sigma
-    threshold = 0.03
-    cholesky_noise = 0.001
-    params = EstimatorParams(alpha, threshold, cholesky_noise)
-
-    # # X = 100 * np.array([[0, 0], [1, 0], [0, 1]], dtype=float)
-    # # indices = np.array([[0, 1], [0, 2], [1, 2], [2, 1]])
-
-    # # X = utils.generate_random_positions(n)
-    X = utils.generate_grid(3, 2) + np.random.multivariate_normal(
-        np.zeros(2), 500 * np.array([[16, 0], [0, 9]], dtype=float), size=n
+    n = 10
+    m = 90
+    X = utils.generate_grid(5, 2) + np.random.multivariate_normal(
+        np.zeros(2), 100 * np.array([[16, 0], [0, 9]], dtype=float), size=n
     )
 
-    # N = 12
+    params = get_default_params()
+    sigmas = utils.generate_sigmas(m, max=0.1)
+    estimator = Estimator(n, params)
+    indices = utils.generate_indices(m, n)
+    Y = utils.generate_measurements(X, indices, sigmas)
 
-    # utils.plot_unbiased(
-    #     [
-    #         X
-    #         @ np.array(
-    #             [
-    #                 [np.cos(i * np.pi / 6), -np.sin(i * np.pi / 6)],
-    #                 [np.sin(i * np.pi / 6), np.cos(i * np.pi / 6)],
-    #             ]
-    #         ).T
-    #         for i in range(N)
-    #     ],
-    #     list(range(N)),
-    #     show=True,
-    # )
+    X_hat, _, _ = estimator.estimate_RE(indices, Y, sigmas)
+    # X_tilde, _, _ = estimator.estimate_RE(indices, Y, sigmas)
+    X_tilde, _ = estimator.estimate_gradient(indices, Y, sigmas, X_hat)
 
-    # return
+    plt.figure()
+    ax = plt.gca()
 
-    # np.random.seed(105)
-    # n = 3
-    # m = n
-    # assert n * (n - 1) >= m, "Too many measurements!"
-    # alpha = 0.01
-    # sigma = 1
-    # sigmas = np.ones(m) * sigma
-    # threshold = 0.01
-    # cholesky_noise = 0.001
-
-    # X = utils.generate_positions(n)
-    # # X = np.array([[0, 0], [100, 0], [0, 100], [100, 100]])
-    # indices = utils.generate_indices(m, n)
-    # meas = utils.generate_measurements(X, indices, sigmas)
-
-    # params = Params(alpha, threshold, cholesky_noise)
-    # estimator = Estimator(n, params)
-
-    # X_hat = estimator.estimate_RE_mod(indices, meas, sigmas)
-
-    # X_hat_refined = estimator.estimate_kruskal(
-    #     indices,
-    #     meas,
-    #     sigmas,
-    #     X + np.random.multivariate_normal(np.zeros(2), 10 * np.eye(2), size=n),
-    #     1000,
-    # )
-
-    # utils.plot_unbiased(
-    #     [X, X_hat, X_hat_refined],
-    #     ["Real", "Estimate", "Refined"],
-    #     [False, True, False],
-    #     show=True,
-    # )
+    utils.plot_unbiased(ax, [X, X_hat, X_tilde], ["Real", "Estimate", "Refined"], ["o", "x", "+"])
+    plt.legend()
+    plt.show()
 
 
 if __name__ == "__main__":
