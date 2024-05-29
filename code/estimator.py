@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Callable
 
 import cvxpy as cp
 import matplotlib.pyplot as plt
@@ -9,8 +10,10 @@ import scipy.linalg
 import scipy.sparse
 import scipy.sparse as sp
 import utils
-from filterpy.common import Q_discrete_white_noise
-from filterpy.kalman.kalman_filter import KalmanFilter
+
+# from filterpy.common import Q_discrete_white_noise
+# from filterpy.kalman.UKF import UnscentedKalmanFilter
+from kalman_filter import EKF
 from numpy.linalg import norm, pinv
 
 
@@ -19,26 +22,120 @@ class EstimatorParams:
     alpha: float  # Scaling in RE
     threshold_frac: float  # Singular values cutoff threshold
     cholesky_noise: float  # Noise to enable stable Cholesky fac
+    kalman_Q_gain: float
+    kalman_R_gain: float
+
+
+@dataclass
+class EKF_funcs:
+    f: Callable
+    g: Callable
+    A_t: Callable
+    C_t: Callable
 
 
 def get_default_params():
-    return EstimatorParams(1, 0.1, 0.01)
+    return EstimatorParams(1, 0.1, 0.01, 1, 1)
+
+
+def get_default_ekf_funcs(n, dt):
+    def separate_xs(x):
+        px = x[::3]
+        py = x[1::3]
+        thetas = x[2::3]
+
+        return px, py, thetas
+
+    def separate_us(u):
+        vs = u[::2]
+        omegas = u[1::2]
+
+        return vs, omegas
+
+    def A_t(x, u):
+        px, py, thetas = separate_xs(x)
+        vs, us = separate_us(u)
+
+        As = []
+        for i in range(n):
+            A = np.eye(3)
+            A[0, 2] = -dt * vs[i] * np.sin(thetas[i])
+            A[1, 2] = dt * vs[i] * np.cos(thetas[i])
+            As.append(A)
+        A = scipy.linalg.block_diag(As)
+
+        return A
+
+    def C_t(x):
+        Cs = []
+
+        for i in range(n):
+            C = np.array(
+                [
+                    [1, 0, 0],
+                    [0, 1, 0],
+                ]
+            )
+
+            Cs.append(C)
+        C = scipy.linalg.block_diag(Cs)
+
+        return C
+
+    def f(x, u):
+        px, py, thetas = separate_xs(x)
+        vs, omegas = separate_us(u)
+
+        sint = np.sin(thetas)
+        cost = np.cos(thetas)
+
+        x_new = np.zeros_like(x)
+
+        x_new[::3] += dt * vs * cost
+        x_new[1::3] += dt * vs * sint
+        x_new[2::3] += dt * omegas
+
+    def g(x):
+        z = np.zeros(2 * n)
+
+        z[::2] = x[::3]
+        z[1::2] = x[1::3]
+        return x
+
+    return EKF_funcs(f, g, A_t, C_t)
 
 
 class Estimator:
 
-    def __init__(self, n: int, params: EstimatorParams):
+    def __init__(self, n: int, params: EstimatorParams, funcs: EKF_funcs):
         self._alpha = params.alpha
         self._threshold_frac = params.threshold_frac
         self._cholesky_noise = params.cholesky_noise
         self._n = n
 
-        self._kf = KalmanFilter(4 * n, 2 * n)  # [x1 dx1 x2 dx2 ...]
-        # self._kf.Q = scipy.sparse.block_diag(
-        #     2 * n * [Q_discrete_white_noise(dim=2, dt=0.5, var=1, order_by_dim=False, block_size=2)]
-        # ).tocsr()
-        # self._kf.R = scipy.sparse.block_diag(n * [np.eye()])
+        # self._ukf = UnscentedKalmanFilter(3 * n, 2 * n,dt, self._g, self._f, )  # [x1 dx1 x2 dx2 ...]
+        mu0 = np.zeros(3 * n)
+        Sigma0 = np.zeros((3 * n, 3 * n))
 
+        Q = params.kalman_Q_gain * sp.block_diag(
+            n * [np.diag([100, 100, 1])]
+        )  # 100x more variation in position than angle
+        # self._ukf.Q = Q.toarray()
+
+        R = params.kalman_R_gain * sp.block_diag(n * [np.diag([100, 100])])
+        # self._ukf.Q = R.toarray()
+
+        self._kf = EKF(funcs.f, funcs.g, funcs.A_t, funcs.C_t, Q, R, mu0, Sigma0)
+
+        self._priors_set = False
+        self._do_predict = True
+
+    @staticmethod
+    def _f(x, u):
+        pass
+
+    @staticmethod
+    def _g(x):
         pass
 
     def estimate_RE(self, indices: np.ndarray, measurements: np.ndarray, sigmas: np.ndarray):
@@ -113,7 +210,7 @@ class Estimator:
             # prob_primal.solve("MOSEK", verbose=True)
 
             # Y_r_star = scipy.linalg.cholesky(Z.value + self._cholesky_noise * np.eye(m))
-            Z = prob_dual_sdp.solution.dual_vars.popitem()[1]
+            Z = prob_dual_sdp.solution.dual_vars.popitem()[1]  # type:ignore
             Y_r_star = scipy.linalg.cholesky(Z + self._cholesky_noise * np.eye(m), lower=True)
 
         Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
@@ -268,6 +365,33 @@ class Estimator:
                 break
 
         return X, costs[:its_taken]
+
+    def set_priors(self, xs):
+        self._kf.μ[::3] = xs[::2]
+        self._kf.μ[1::3] = xs[1::2]
+
+        self._kf.Σ[0::3, 0::3] = 100
+        self._kf.Σ[1::3, 1::3] = 100
+        self._kf.Σ[2::3, 2::3] = np.pi
+
+        self._priors_set = True
+
+    def ekf_predict(self, u):
+        assert self._priors_set, "You must set priors before predicting"
+        assert self._do_predict, "You cannot predict twice in a row"
+        self._do_predict = False
+
+        x, S = self._kf.predict(u)
+
+        return x
+
+    def ekf_update(self, y):
+        assert not self._do_predict, "You cannot predict twice in a row"
+        self._do_predict = True
+
+        x, S = self._kf.update(y)
+
+        return x
 
     def _get_step_kruskal(self, step_prev, g, g_prev, cost, cost_prev, cost_5prev):
         # Angle factor
