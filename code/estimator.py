@@ -372,37 +372,3 @@ class Estimator:
         # grads_j_foo[indices[:, 1], :] -= g_foo
 
         return grads_i + grads_j
-
-
-def _main():
-    np.set_printoptions(
-        precision=3,
-        suppress=True,
-    )
-    np.random.seed(1213)
-    n = 10
-    m = 90
-    X = utils.generate_grid(5, 2) + np.random.multivariate_normal(
-        np.zeros(2), 100 * np.array([[16, 0], [0, 9]], dtype=float), size=n
-    )
-
-    params = get_default_params()
-    sigmas = utils.generate_sigmas(m, max=0.1)
-    estimator = Estimator(n, params)
-    indices = utils.generate_indices(m, n)
-    Y = utils.generate_measurements(X, indices, sigmas)
-
-    X_hat, _, _ = estimator.estimate_RE(indices, Y, sigmas)
-    # X_tilde, _, _ = estimator.estimate_RE(indices, Y, sigmas)
-    X_tilde, _ = estimator.estimate_gradient(indices, Y, sigmas, X_hat)
-
-    plt.figure()
-    ax = plt.gca()
-
-    utils.plot_unbiased(ax, [X, X_hat, X_tilde], ["Real", "Estimate", "Refined"], ["o", "x", "+"])
-    plt.legend()
-    plt.show()
-
-
-if __name__ == "__main__":
-    _main()
