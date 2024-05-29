@@ -130,14 +130,6 @@ class Estimator:
         self._priors_set = False
         self._do_predict = True
 
-    @staticmethod
-    def _f(x, u):
-        pass
-
-    @staticmethod
-    def _g(x):
-        pass
-
     def estimate_RE(self, indices: np.ndarray, measurements: np.ndarray, sigmas: np.ndarray):
         m, n = indices.shape
 
@@ -246,60 +238,6 @@ class Estimator:
         p_mle_star = utils.get_cost(X_star, indices, measurements, sigmas, self._alpha)
 
         return X_star, p_mle_star, p_sdp_star
-
-    def estimate_RE_mod(self, indices: np.ndarray, measurements: np.ndarray, sigmas: np.ndarray):
-        raise NotImplementedError()
-        m, n = indices.shape
-
-        data = np.hstack((np.ones(m), -np.ones(m)))
-        rows = np.hstack((np.arange(m), np.arange(m)))
-        cols = indices.T.reshape(-1)
-        inds = (rows, cols)
-
-        C = sp.coo_array((data, inds), shape=(m, self._n), dtype=int).tocsr()
-
-        D_tilde = sp.diags_array(measurements)
-
-        W = sp.diags_array(self._alpha / sigmas)
-
-        D_tilde_sq = D_tilde**2
-        G_pinv = pinv((C.T @ W @ C).toarray())
-        Q_2 = -D_tilde_sq @ W @ C @ G_pinv @ C.T @ W
-
-        Z = cp.Variable((m, m), PSD=True)
-
-        obj_primal = cp.Minimize(cp.trace(Q_2 @ Z))
-
-        cons_primal = [cp.diag(Z) == 1]
-
-        prob_primal = cp.Problem(obj_primal, cons_primal)  # type:ignore
-        prob_primal.solve("MOSEK", verbose=True)
-
-        Y_r_star = scipy.linalg.cholesky(Z.value + np.eye(m) * self._cholesky_noise, lower=True)
-
-        Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
-
-        # Manifold optimization
-        manopt_optimizer = pymanopt.optimizers.ConjugateGradient()
-        manifold = pymanopt.manifolds.Oblique(m=2, n=m)
-
-        @pymanopt.function.numpy(manifold)
-        def cost(Yt):
-            # Y is transposed here (2 x m)
-            return np.trace(Q_2 @ Yt.T @ Yt)
-
-        @pymanopt.function.numpy(manifold)
-        def grad(Yt):
-            return Yt @ Q_2.T + Yt @ Q_2
-
-        prob_mle = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad)
-        # prob_mle = pymanopt.Problem(manifold, cost=cost)
-
-        result_mle = manopt_optimizer.run(prob_mle, initial_point=Y_0.T)
-        p_mle_star = result_mle.cost
-        Y_mle_star = result_mle.point.T
-        X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
-        return X_star
 
     def estimate_gradient(
         self,
