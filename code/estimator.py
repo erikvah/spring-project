@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+from typing import Callable
 
 import cvxpy as cp
+import matplotlib.pyplot as plt
 import numpy as np
 import pymanopt
 import scipy
@@ -8,8 +10,10 @@ import scipy.linalg
 import scipy.sparse
 import scipy.sparse as sp
 import utils
-from filterpy.common import Q_discrete_white_noise
-from filterpy.kalman.kalman_filter import KalmanFilter
+
+# from filterpy.common import Q_discrete_white_noise
+# from filterpy.kalman.UKF import UnscentedKalmanFilter
+from kalman_filter import EKF
 from numpy.linalg import norm, pinv
 
 
@@ -18,27 +22,117 @@ class EstimatorParams:
     alpha: float  # Scaling in RE
     threshold_frac: float  # Singular values cutoff threshold
     cholesky_noise: float  # Noise to enable stable Cholesky fac
+    kalman_Q_gain: float
+    kalman_R_gain: float
+    dt: float
+
+
+@dataclass
+class EKF_funcs:
+    f: Callable
+    g: Callable
+    A_t: Callable
+    C_t: Callable
 
 
 def get_default_params():
-    return EstimatorParams(1, 0.05, 0.01)
+    return EstimatorParams(1, 0.1, 0.01, 1, 1, 0.1)
+
+
+def get_default_ekf_funcs(n, dt):
+    def separate_xs(x):
+        px = x[::3]
+        py = x[1::3]
+        thetas = x[2::3]
+
+        return px, py, thetas
+
+    def separate_us(u):
+        vs = u[::2]
+        omegas = u[1::2]
+
+        return vs, omegas
+
+    def A_t(x, u):
+        px, py, thetas = separate_xs(x)
+        vs, us = separate_us(u)
+
+        As = []
+        for i in range(n):
+            A = np.eye(3)
+            A[0, 2] = -dt * vs[i] * np.sin(thetas[i])
+            A[1, 2] = dt * vs[i] * np.cos(thetas[i])
+            As.append(A)
+        A = scipy.linalg.block_diag(*As)
+
+        return A
+
+    def C_t(x):
+        Cs = []
+
+        for i in range(n):
+            C = np.array(
+                [
+                    [1, 0, 0],
+                    [0, 1, 0],
+                ]
+            )
+
+            Cs.append(C)
+        C = scipy.linalg.block_diag(*Cs)
+
+        return C
+
+    def f(x, u):
+        px, py, thetas = separate_xs(x)
+        vs, omegas = separate_us(u)
+
+        sint = np.sin(thetas)
+        cost = np.cos(thetas)
+
+        x_new = x.copy()
+
+        x_new[::3] += dt * vs * cost
+        x_new[1::3] += dt * vs * sint
+        x_new[2::3] += dt * omegas
+
+        return x_new
+
+    def g(x):
+        z = np.zeros(2 * n)
+
+        z[::2] = x[::3]
+        z[1::2] = x[1::3]
+
+        return z
+
+    return EKF_funcs(f, g, A_t, C_t)
 
 
 class Estimator:
 
-    def __init__(self, n: int, params: EstimatorParams):
+    def __init__(self, n: int, params: EstimatorParams, funcs: EKF_funcs):
         self._alpha = params.alpha
         self._threshold_frac = params.threshold_frac
         self._cholesky_noise = params.cholesky_noise
         self._n = n
 
-        self._kf = KalmanFilter(4 * n, 2 * n)  # [x1 dx1 x2 dx2 ...]
-        # self._kf.Q = scipy.sparse.block_diag(
-        #     2 * n * [Q_discrete_white_noise(dim=2, dt=0.5, var=1, order_by_dim=False, block_size=2)]
-        # ).tocsr()
-        # self._kf.R = scipy.sparse.block_diag(n * [np.eye()])
+        # self._ukf = UnscentedKalmanFilter(3 * n, 2 * n,dt, self._g, self._f, )  # [x1 dx1 x2 dx2 ...]
+        mu0 = np.zeros(3 * n)
+        Sigma0 = np.zeros((3 * n, 3 * n))
 
-        pass
+        Q = (
+            params.kalman_Q_gain * sp.block_diag(n * [np.diag([100, 100, 1])]).toarray()
+        )  # 100x more variation in position than angle
+        # self._ukf.Q = Q.toarray()
+
+        R = params.kalman_R_gain * sp.block_diag(n * [np.diag([100, 100])]).toarray()
+        # self._ukf.Q = R.toarray()
+
+        self._kf = EKF(funcs.f, funcs.g, funcs.A_t, funcs.C_t, Q, R, mu0, Sigma0)
+
+        self._priors_set = False
+        self._do_predict = True
 
     def estimate_RE(self, indices: np.ndarray, measurements: np.ndarray, sigmas: np.ndarray):
         m, n = indices.shape
@@ -88,13 +182,8 @@ class Estimator:
 
         r = m - R_rank
 
-        print(f"Found {r = }")
-
-        V = Vt.T[:, m - r :]
-
-        assert r >= 2
-
         if r >= 2:
+            V = Vt.T[:, m - r :]
             Z_bar = cp.Variable((r, r), PSD=True)
 
             obj_primal = cp.Minimize(cp.square(cp.norm2(cp.diag(V @ Z_bar @ V.T) - np.ones(m))))
@@ -107,21 +196,22 @@ class Estimator:
             # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
             Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value + self._cholesky_noise * np.eye(r), lower=True).T
         else:
-            Z = cp.Variable((m, m), PSD=True)
+            # Z = cp.Variable((m, m), PSD=True)
 
-            obj_primal = cp.Minimize(cp.trace(Q_2 @ Z))
+            # obj_primal = cp.Minimize(cp.trace(Q_2 @ Z))
 
-            cons_primal = [cp.diag(Z) == 1]
+            # cons_primal = [cp.diag(Z) == 1]
 
-            prob_primal = cp.Problem(obj_primal, cons_primal)  # type:ignore
-            prob_primal.solve("MOSEK", verbose=True)
+            # prob_primal = cp.Problem(obj_primal, cons_primal)  # type:ignore
+            # prob_primal.solve("MOSEK", verbose=True)
 
-            Y_r_star = scipy.linalg.cholesky(Z.value + self._cholesky_noise * np.eye(m), lower=True).T
+            # Y_r_star = scipy.linalg.cholesky(Z.value + self._cholesky_noise * np.eye(m))
+            Z = prob_dual_sdp.solution.dual_vars.popitem()[1]  # type:ignore
+            Y_r_star = scipy.linalg.cholesky(Z + self._cholesky_noise * np.eye(m), lower=True)
 
         Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
 
         # Manifold optimization
-        manopt_optimizer = pymanopt.optimizers.ConjugateGradient()
         manifold = pymanopt.manifolds.Oblique(m=2, n=m)
 
         @pymanopt.function.numpy(manifold)
@@ -133,71 +223,25 @@ class Estimator:
         def grad(Yt):
             return Yt @ Q_2.T + Yt @ Q_2
 
-        prob_mle = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad)
-        # prob_mle = pymanopt.Problem(manifold, cost=cost)
+        @pymanopt.function.numpy(manifold)
+        def hess(Yt, H):
+            return H @ (Q_2.T + Q_2)
 
+        # manopt_optimizer_rtr = pymanopt.optimizers.TrustRegions()
+        # prob_mle_rtr = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad, euclidean_hessian=hess)
+        # result_mle_rtr = manopt_optimizer_rtr.run(prob_mle_rtr, initial_point=Y_0.T)
+        # Y_mle_star = result_mle_rtr.point.T
+
+        manopt_optimizer = pymanopt.optimizers.ConjugateGradient()
+        prob_mle = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad)
         result_mle = manopt_optimizer.run(prob_mle, initial_point=Y_0.T)
-        # p_mle_star = result_mle.cost
         Y_mle_star = result_mle.point.T
+
         X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
 
         p_mle_star = utils.get_cost(X_star, indices, measurements, sigmas, self._alpha)
 
         return X_star, p_mle_star, p_sdp_star
-
-    def estimate_RE_mod(self, indices: np.ndarray, measurements: np.ndarray, sigmas: np.ndarray):
-        raise NotImplementedError()
-        m, n = indices.shape
-
-        data = np.hstack((np.ones(m), -np.ones(m)))
-        rows = np.hstack((np.arange(m), np.arange(m)))
-        cols = indices.T.reshape(-1)
-        inds = (rows, cols)
-
-        C = sp.coo_array((data, inds), shape=(m, self._n), dtype=int).tocsr()
-
-        D_tilde = sp.diags_array(measurements)
-
-        W = sp.diags_array(self._alpha / sigmas)
-
-        D_tilde_sq = D_tilde**2
-        G_pinv = pinv((C.T @ W @ C).toarray())
-        Q_2 = -D_tilde_sq @ W @ C @ G_pinv @ C.T @ W
-
-        Z = cp.Variable((m, m), PSD=True)
-
-        obj_primal = cp.Minimize(cp.trace(Q_2 @ Z))
-
-        cons_primal = [cp.diag(Z) == 1]
-
-        prob_primal = cp.Problem(obj_primal, cons_primal)  # type:ignore
-        prob_primal.solve("MOSEK", verbose=True)
-
-        Y_r_star = scipy.linalg.cholesky(Z.value + np.eye(m) * self._cholesky_noise, lower=True)
-
-        Y_0 = (Y_r_star[:, 0:2].T / norm(Y_r_star[:, 0:2], axis=1)).T
-
-        # Manifold optimization
-        manopt_optimizer = pymanopt.optimizers.ConjugateGradient()
-        manifold = pymanopt.manifolds.Oblique(m=2, n=m)
-
-        @pymanopt.function.numpy(manifold)
-        def cost(Yt):
-            # Y is transposed here (2 x m)
-            return np.trace(Q_2 @ Yt.T @ Yt)
-
-        @pymanopt.function.numpy(manifold)
-        def grad(Yt):
-            return Yt @ Q_2.T + Yt @ Q_2
-
-        prob_mle = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad)
-        # prob_mle = pymanopt.Problem(manifold, cost=cost)
-
-        result_mle = manopt_optimizer.run(prob_mle, initial_point=Y_0.T)
-        p_mle_star = result_mle.cost
-        Y_mle_star = result_mle.point.T
-        X_star = G_pinv @ C.T @ W @ D_tilde @ Y_mle_star
-        return X_star
 
     def estimate_gradient(
         self,
@@ -264,6 +308,33 @@ class Estimator:
 
         return X, costs[:its_taken]
 
+    def set_priors(self, xs, uncertainty):
+        self._kf.μ[::3] = xs[:, 0]
+        self._kf.μ[1::3] = xs[:, 1]
+
+        self._kf.Σ[0::3, 0::3] = 1000 * uncertainty
+        self._kf.Σ[1::3, 1::3] = 1000 * uncertainty
+        self._kf.Σ[2::3, 2::3] = np.pi
+
+        self._priors_set = True
+
+    def ekf_predict(self, u):
+        assert self._priors_set, "You must set priors before predicting"
+        assert self._do_predict, "You cannot predict twice in a row"
+        self._do_predict = False
+
+        x, S = self._kf.predict(u)
+
+        return x.reshape(-1, 3)
+
+    def ekf_update(self, y):
+        assert not self._do_predict, "You cannot predict twice in a row"
+        self._do_predict = True
+
+        x, S = self._kf.update(y.reshape(-1))
+
+        return x.reshape(-1, 3)
+
     def _get_step_kruskal(self, step_prev, g, g_prev, cost, cost_prev, cost_5prev):
         # Angle factor
         g_vec = g.reshape(-1)
@@ -305,83 +376,3 @@ class Estimator:
         # grads_j_foo[indices[:, 1], :] -= g_foo
 
         return grads_i + grads_j
-
-
-def _main():
-    np.set_printoptions(precision=3, suppress=True)
-    np.random.seed(1213)
-    n = 6
-    m = 30
-
-    alpha = 0.0001
-    sigma = 10
-    sigmas = np.ones(m, dtype=float) * sigma
-    threshold = 0.03
-    cholesky_noise = 0.001
-    params = EstimatorParams(alpha, threshold, cholesky_noise)
-
-    # # X = 100 * np.array([[0, 0], [1, 0], [0, 1]], dtype=float)
-    # # indices = np.array([[0, 1], [0, 2], [1, 2], [2, 1]])
-
-    # # X = utils.generate_random_positions(n)
-    X = utils.generate_grid(3, 2) + np.random.multivariate_normal(
-        np.zeros(2), 500 * np.array([[16, 0], [0, 9]], dtype=float), size=n
-    )
-
-    # N = 12
-
-    # utils.plot_unbiased(
-    #     [
-    #         X
-    #         @ np.array(
-    #             [
-    #                 [np.cos(i * np.pi / 6), -np.sin(i * np.pi / 6)],
-    #                 [np.sin(i * np.pi / 6), np.cos(i * np.pi / 6)],
-    #             ]
-    #         ).T
-    #         for i in range(N)
-    #     ],
-    #     list(range(N)),
-    #     show=True,
-    # )
-
-    # return
-
-    # np.random.seed(105)
-    # n = 3
-    # m = n
-    # assert n * (n - 1) >= m, "Too many measurements!"
-    # alpha = 0.01
-    # sigma = 1
-    # sigmas = np.ones(m) * sigma
-    # threshold = 0.01
-    # cholesky_noise = 0.001
-
-    # X = utils.generate_positions(n)
-    # # X = np.array([[0, 0], [100, 0], [0, 100], [100, 100]])
-    # indices = utils.generate_indices(m, n)
-    # meas = utils.generate_measurements(X, indices, sigmas)
-
-    # params = Params(alpha, threshold, cholesky_noise)
-    # estimator = Estimator(n, params)
-
-    # X_hat = estimator.estimate_RE_mod(indices, meas, sigmas)
-
-    # X_hat_refined = estimator.estimate_kruskal(
-    #     indices,
-    #     meas,
-    #     sigmas,
-    #     X + np.random.multivariate_normal(np.zeros(2), 10 * np.eye(2), size=n),
-    #     1000,
-    # )
-
-    # utils.plot_unbiased(
-    #     [X, X_hat, X_hat_refined],
-    #     ["Real", "Estimate", "Refined"],
-    #     [False, True, False],
-    #     show=True,
-    # )
-
-
-if __name__ == "__main__":
-    _main()
