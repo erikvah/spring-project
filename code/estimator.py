@@ -36,7 +36,7 @@ class EKF_funcs:
 
 
 def get_default_params():
-    return EstimatorParams(1, 0.1, 0.01, 1, 1, 1)
+    return EstimatorParams(1, 0.1, 0.01, 1, 1, 0.1)
 
 
 def get_default_ekf_funcs(n, dt):
@@ -63,7 +63,7 @@ def get_default_ekf_funcs(n, dt):
             A[0, 2] = -dt * vs[i] * np.sin(thetas[i])
             A[1, 2] = dt * vs[i] * np.cos(thetas[i])
             As.append(A)
-        A = scipy.linalg.block_diag(As)
+        A = scipy.linalg.block_diag(*As)
 
         return A
 
@@ -79,7 +79,7 @@ def get_default_ekf_funcs(n, dt):
             )
 
             Cs.append(C)
-        C = scipy.linalg.block_diag(Cs)
+        C = scipy.linalg.block_diag(*Cs)
 
         return C
 
@@ -90,18 +90,21 @@ def get_default_ekf_funcs(n, dt):
         sint = np.sin(thetas)
         cost = np.cos(thetas)
 
-        x_new = np.zeros_like(x)
+        x_new = x.copy()
 
         x_new[::3] += dt * vs * cost
         x_new[1::3] += dt * vs * sint
         x_new[2::3] += dt * omegas
+
+        return x_new
 
     def g(x):
         z = np.zeros(2 * n)
 
         z[::2] = x[::3]
         z[1::2] = x[1::3]
-        return x
+
+        return z
 
     return EKF_funcs(f, g, A_t, C_t)
 
@@ -118,12 +121,12 @@ class Estimator:
         mu0 = np.zeros(3 * n)
         Sigma0 = np.zeros((3 * n, 3 * n))
 
-        Q = params.kalman_Q_gain * sp.block_diag(
-            n * [np.diag([100, 100, 1])]
+        Q = (
+            params.kalman_Q_gain * sp.block_diag(n * [np.diag([100, 100, 1])]).toarray()
         )  # 100x more variation in position than angle
         # self._ukf.Q = Q.toarray()
 
-        R = params.kalman_R_gain * sp.block_diag(n * [np.diag([100, 100])])
+        R = params.kalman_R_gain * sp.block_diag(n * [np.diag([100, 100])]).toarray()
         # self._ukf.Q = R.toarray()
 
         self._kf = EKF(funcs.f, funcs.g, funcs.A_t, funcs.C_t, Q, R, mu0, Sigma0)
@@ -305,12 +308,12 @@ class Estimator:
 
         return X, costs[:its_taken]
 
-    def set_priors(self, xs):
-        self._kf.μ[::3] = xs[::2]
-        self._kf.μ[1::3] = xs[1::2]
+    def set_priors(self, xs, uncertainty):
+        self._kf.μ[::3] = xs[:, 0]
+        self._kf.μ[1::3] = xs[:, 1]
 
-        self._kf.Σ[0::3, 0::3] = 100
-        self._kf.Σ[1::3, 1::3] = 100
+        self._kf.Σ[0::3, 0::3] = 1000 * uncertainty
+        self._kf.Σ[1::3, 1::3] = 1000 * uncertainty
         self._kf.Σ[2::3, 2::3] = np.pi
 
         self._priors_set = True
@@ -322,15 +325,15 @@ class Estimator:
 
         x, S = self._kf.predict(u)
 
-        return x
+        return x.reshape(-1, 3)
 
     def ekf_update(self, y):
         assert not self._do_predict, "You cannot predict twice in a row"
         self._do_predict = True
 
-        x, S = self._kf.update(y)
+        x, S = self._kf.update(y.reshape(-1))
 
-        return x
+        return x.reshape(-1, 3)
 
     def _get_step_kruskal(self, step_prev, g, g_prev, cost, cost_prev, cost_5prev):
         # Angle factor

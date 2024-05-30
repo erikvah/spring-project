@@ -65,6 +65,10 @@ class EKF:
         self.μ = self.μ + self.K @ (y - self.g(self.μ))
         self.Σ = self.Σ - self.K @ self.C(self.μ) @ self.Σ
 
+        self.μ = np.round(self.μ, 5)
+        self.Σ = np.round(self.Σ, 5)
+        self.K = np.round(self.K, 5)
+
         # We expect Σ to be a valid covariance matrix, so we symmetrize
         self.Σ = 0.5 * (self.Σ + self.Σ.T)
 

@@ -80,6 +80,56 @@ def get_cost(X, indices, measurements, sigmas, alpha):
     return (((alpha / sigmas) / 2) * (distances - measurements) ** 2) @ np.ones_like(sigmas)
 
 
+def _min_norm_permutation(A, B):
+    """Minimum norm of A - B
+    by inverting axes"""
+    min_normal = np.linalg.norm(A - B, "fro")
+    min_swap_first = np.linalg.norm(A - B @ np.diag([-1, 1]), "fro")
+    min_swap_second = np.linalg.norm(A - B @ np.diag([1, -1]), "fro")
+    min_swap_both = np.linalg.norm(A - B @ np.diag([-1, -1]), "fro")
+    min_inv_normal = np.linalg.norm(A - B[:, (1, 0)], "fro")
+    min_inv_swap_first = np.linalg.norm(A - B[:, (1, 0)] @ np.diag([-1, 1]), "fro")
+    min_inv_swap_second = np.linalg.norm(A - B[:, (1, 0)] @ np.diag([1, -1]), "fro")
+    min_inv_swap_both = np.linalg.norm(A - B[:, (1, 0)] @ np.diag([-1, -1]), "fro")
+
+    mins = [
+        min_normal,
+        min_swap_first,
+        min_swap_second,
+        min_swap_both,
+        min_inv_normal,
+        min_inv_swap_first,
+        min_inv_swap_second,
+        min_inv_swap_both,
+    ]
+
+    if min_normal == min(mins):
+        print(1)
+        return B
+    if min_swap_first == min(mins):
+        print(2)
+        return B @ np.diag([-1, 1])
+    if min_swap_second == min(mins):
+        print(3)
+        return B @ np.diag([1, -1])
+    if min_swap_both == min(mins):
+        print(4)
+        return B @ np.diag([-1, -1])
+
+    if min_inv_normal == min(mins):
+        print(5)
+        return B[:, (1, 0)]
+    if min_inv_swap_first == min(mins):
+        print(6)
+        return B[:, (1, 0)] @ np.diag([-1, 1])
+    if min_inv_swap_second == min(mins):
+        print(7)
+        return B[:, (1, 0)] @ np.diag([1, -1])
+    if min_inv_swap_both == min(mins):
+        print(7)
+        return B[:, (1, 0)] @ np.diag([-1, -1])
+
+
 def get_unbiased_coords(X, old_coords):
     mean = X.mean(axis=0)
 
@@ -95,6 +145,8 @@ def get_unbiased_coords(X, old_coords):
         new_coords[:, 0] *= -1
     if prods[1, 1] < 0:
         new_coords[:, 1] *= -1
+
+    # new_coords = _min_norm_permutation(old_coords, new_coords)
 
     return new_coords
 
@@ -148,8 +200,8 @@ def plot_measurements(Xs, indices, labels, colors, ax):
                 # ax.arrow(x0, y0, x1 - x0, y1 - y0, ec=color, fc=color, head_width=0.1, head_length=0.1)
 
 
-def generate_sigmas(m, max=10.0):
-    return np.random.uniform(0.1, max, size=m)
+def generate_sigmas(m, min=0.1, max=10.0):
+    return np.random.uniform(min, max, size=m)
 
 
 def tick():
