@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import utils
-from estimator import Estimator, get_default_params
+from estimator import Estimator, get_default_ekf_funcs, get_default_params
 
 
 def run_kruskal_tests():
@@ -63,7 +63,8 @@ def run_kruskal_tests():
 
 def kruskal_test(m, n, N, w, h):
     params = get_default_params()
-    estimator = Estimator(n, params)
+    funcs = get_default_ekf_funcs(n, params.dt)
+    estimator = Estimator(n, params, funcs)
 
     sigmas = utils.generate_sigmas(m)
     X = utils.generate_grid(w, h)
@@ -165,7 +166,8 @@ def RE_test(m, n, w, h):
     # Y, indices, sigmas = utils.generate_realistic_measurements(X, max_r, max_sigma)
 
     params = get_default_params()
-    estimator = Estimator(n, params)
+    funcs = get_default_ekf_funcs(n, params.dt)
+    estimator = Estimator(n, params, funcs)
 
     X_hat, cost_re, l_bound = estimator.estimate_RE(indices, Y, sigmas)
 
@@ -183,5 +185,5 @@ def RE_test(m, n, w, h):
 if __name__ == "__main__":
     plt.style.use("bmh")
     np.seterr("raise")
-    run_kruskal_tests()
+    # run_kruskal_tests()
     # run_RE_tests()

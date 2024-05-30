@@ -24,6 +24,7 @@ class EstimatorParams:
     cholesky_noise: float  # Noise to enable stable Cholesky fac
     kalman_Q_gain: float
     kalman_R_gain: float
+    dt: float
 
 
 @dataclass
@@ -35,7 +36,7 @@ class EKF_funcs:
 
 
 def get_default_params():
-    return EstimatorParams(1, 0.1, 0.01, 1, 1)
+    return EstimatorParams(1, 0.1, 0.01, 1, 1, 1)
 
 
 def get_default_ekf_funcs(n, dt):
