@@ -1,0 +1,27 @@
+\documentclass{article}
+
+\usepackage{amsmath, amssymb, amsthm}
+
+\begin{document}
+
+\begin{align*}
+    \text{Graph: } && &\mathcal{G} = (\mathcal{V}, \mathcal{E}) \\
+    \text{Positions: } && & x_i \in \mathbf{R}^2 \\
+    \text{Measurements: } && & y_i \in \mathbf{R} \\
+    \text{Weights: } && & w_{ij} \in \mathbf{R} \\
+    \text{Objective: } && &\min_{{x_1, ..., x_n}} S({x_1, ..., x_n}) = \sum_{(i, j) \in \mathcal{E}} \frac{w_{ij}}{2}(\left|\left| x_i - x_i \right|\right|_2 - y_i)^2
+\end{align*}
+
+\begin{align*}
+    \text{Initial step: } && \alpha_0 &= 0.2 \\
+    \text{Current stress: } && S_k &= S(...) \\
+    \text{Gradient: } && g_k &= \nabla S(...) \\
+    \text{Step: } && x_{k+1} &= x_k + \alpha_k g_k \\
+    \text{Step size: } && \alpha_{k} &= \alpha_{k-1} \cdot \beta_k \cdot \gamma_k \cdot \delta_k \\
+    \text{Angle factor: } && \beta_k &= 4^{(\phi_k^3)} \\
+    \text{Cosine angle: } && \phi_k &= \frac{\left|\left|g_k\right|\right|_2\left|\left|g_{k-1}\right|\right|_2}{g_k^\top g_{k-1}} \\
+    \text{Relaxation factor: } &&\gamma_k &= \frac{1.3}{1 + (\min\{1, \frac{S_k}{S_{k-5}}\})^5} \\
+    \text{Good luck factor: } && \delta_k &= \min\{1, \frac{S_k}{S_{k-1}}\}
+\end{align*}
+
+\end{document}
