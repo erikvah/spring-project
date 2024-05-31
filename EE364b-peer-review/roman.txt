@@ -1,32 +1,20 @@
-This report investigates a few approaches to solve a
-non-convex system identification problem using 
-successive convex related problems. The innovation
-is alternating the objective between optimizing each 
-factor in a product, thereby making the problem convex.
-To prevent unstable behaviour, regularization is added 
-so that the terms do not diverge from each other. 
+This report investigates a few approaches to solve a non-convex system identification problem using successive convex related problems. The innovation is alternating the objective between optimizing each factor in a product, thereby making the problem convex. To prevent unstable behavior, regularization is added so that the terms do not diverge from each other. 
 
-Pros:
-The example grounds the somewhat technical nature of the paper well
+While the nature of the paper is technical and somewhat abstract, the given example of a classical channel grounds it and aids in understanding the problem. It might be better to present such an example earlier, or at least refer to the explanation so that reader may understand the purpose of the paper more clearly. Another option could be to add some sources as additional reading so that an interested reader can investigate the topic further. 
 
-The paper flows well from problem presentation to theory to empirical results
+The paper is well structured, and flows well. After the introduction succinctly presents the problem, the two different approaches to optimize it are presented. The results are presented clearly in easy-to-read plots. 
 
-The writing style is clear and concise
+I would be interested to see if similar approaches have been tried in other literature? Has this problem been investigated before, and if so, what were the results. Are the processes presented wholly new, or has something similar been tried elsewhere? Again, a more extensive bibliography would be helpful. 
 
-Cons:
-A longer introduction and explanation of the problem would aid 
-in understanding the motivation for the underlying problem
+An issue throughout the paper is ambiguity in the equations. The index i is used almost throughout, and it is not always clear from the equations what the optimization procedure is. To resolve this, it would be helpful to separate the indices and use different letters for iteration number, sum variable, and optimization target. 
 
-The equations are not too clear. The index i appears 
-both inside and outside the sums. Which K is constant
-and which is being optimized over is not totally clear
+While the subject of the report indeed is interesting, it is not explained why we would expect to find a reasonable solution for a problem that classically requires 2^2N measurements with a single measurement. Is this based on previous research in this field? Otherwise, one suggestion would be to instead investigate how much the data requirement can be relaxed while still attaining a reasonable model of the channel. Then solving this as a least norm problem would be more based in the established literature, as I understand it. 
 
-A clearer explanation of the sequential optimization problems
-would greatly benefit the paper
+Scores: 
+Clarity/Presentation Score: 3/5
 
-comments/questions
-What method was used to optimize? CVX? 
+The problem is well-described and the report is well organized. Some further description of the solving method and the development thereof would improve the work, as well as additional sources. The equations are not very readable with the repeated indices, and should be revised. 
 
-Is it really reasonable to expect a single input-output pair
-to be able to model a system that traditionally takes 2^2N
-input-output pairs? 
+Technical Content Score: 3/5
+
+The approaches presented in the paper seem original. The verification is somewhat lacking, as only a single simple case is investigated, although that will likely be remedied in the final report. The approach is not wholly mathematically motivated, and referring to some previous papers with similar methods would have been helpful. It is not clear that solving the problem with a single measurement is feasible
