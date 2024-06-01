@@ -36,7 +36,7 @@ class EKF_funcs:
 
 
 def get_default_params():
-    return EstimatorParams(1, 0.1, 0.01, 1, 1, 0.1)
+    return EstimatorParams(1, 0.1, 0.01, 1, 1, 1)
 
 
 def get_default_ekf_funcs(n, dt):
