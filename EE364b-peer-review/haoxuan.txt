@@ -1,0 +1,16 @@
+The report extends recently developed theory on accelerated mirror descent and its connection to discretized differential equations. A novel reformulation of mirror descent over the space of probability measures as a partial differential equation is presented.
+
+This paper presents a very interesting concept, though I lack some of the mathematical background to grasp  all of it. However, it is well written, and the ideas explored are well-researched and clearly presented.
+
+It is mentioned in section 5 that a discretized version of equation 11 will be used in numerical experiments. As numerical tests are underway, I would assume that this discretization has been derived. As such, it would simplify replication of the results if this was also presented. However, I concede that this is not the focus of the paper and I understand the reasoning of not including it. 
+
+I had never heard of the interpretation of optimization methods as a discretization of differential equations. Therefore, a brief introduction of this like there is in Krichene et. al. would've aided my understanding. 
+
+Scores: 
+Clarity: 5/5
+The paper is very well written, although I have some minor comments. 
+
+The focus of the paper, accelerated mirror descent, is presented clearly, and while an introduction would've aided my understanding, I concede that I am not the target audience for this paper. A way to clearly differentiate what the original work of the paper is may help. One way of doing this may be to rename section 4 to reflect the purpose of the section rather than the content. 
+
+Technical content: 5/5
+In the paper, the work presented is very interesting. Based on my understanding, it is a novel extension of previous work. Whether the derived dynamic form indeed does converge faster than the previous form is something that is missing from this report, though I do not doubt that both theoretical and numerical justifications will be present in the final report. 
