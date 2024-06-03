@@ -1,4 +1,4 @@
-This project will combine some earlier approaches described in section~\ref{sec:lit-rev} to investigate whether this can improve estimation performance. The problem to be investigated, as well as the notation to be used, is described below.
+This project will combine some earlier approaches described in section~\ref{sec:related-work} to investigate whether this can improve estimation performance. The problem to be investigated, as well as the notation to be used, is described below.
 
 \subsection{State-Space Model}
 As described in section~\ref{sec:intro}, this projects seeks to investigate the problem of $n$ robots moving around in an unknown open space. The dynamics of the robots will be assumed to be \nth{1} order differential drive robot, which are robots controlled by speed $v$ and angular velocity $\omega$. This means that for each robot $i$ at time step $t$ we have 
@@ -63,7 +63,7 @@ The positions of the robots as well as the distance measurements are modeled as 
     \caption{Problem reformulation. In the figure, we have a graph $\mathcal{G}=(\mathcal{V}, \mathcal{E})$ where the directed edges $(i, j) \in \mathcal{E}$ have weights $l_{i,j}$ and the vertices $k \in \mathcal{V}$ have positions $x^{(k)}_t$.}
     \label{fig:problem-graph} 
 \end{figure}
-As described in section~\ref{sec:lit-rev}, this is a non-convex with no known efficient global solver. However, the Riemannian Elevator~\cite{R_elevator} provides an approximate solution as well as a non-trivial lower bound on the problem which we can use to determine the quality of the solution. Given this, we can approximately solve the localization problem for the initial positions. The estimates can be further refined using gradient descent on the stress minimization problem as described in previous sections. 
+As described in section~\ref{sec:related-work}, this is a non-convex with no known efficient global solver. However, the Riemannian Elevator~\cite{R_elevator} provides an approximate solution as well as a non-trivial lower bound on the problem which we can use to determine the quality of the solution. Given this, we can approximately solve the localization problem for the initial positions. The estimates can be further refined using gradient descent on the stress minimization problem as described in previous sections. 
 
 We use the notation defined in table~\ref{tab:notation} below to describe the graph and the data collected from it.
 \FloatBarrier
