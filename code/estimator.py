@@ -36,7 +36,7 @@ class EKF_funcs:
 
 
 def get_default_params():
-    return EstimatorParams(1, 0.1, 0.01, 1, 1, 1)
+    return EstimatorParams(1, 0.007, 0.01, 1, 1, 1)
 
 
 def get_default_ekf_funcs(n, dt):
@@ -134,7 +134,7 @@ class Estimator:
         self._priors_set = False
         self._do_predict = True
 
-    def estimate_RE(self, indices: np.ndarray, measurements: np.ndarray, sigmas: np.ndarray):
+    def estimate_RE(self, indices: np.ndarray, measurements: np.ndarray, sigmas: np.ndarray, verbose=False):
         m, n = indices.shape
 
         data = np.hstack((-np.ones(m), np.ones(m)))
@@ -168,7 +168,7 @@ class Estimator:
                 "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-12,
             }
         }
-        prob_dual_sdp.solve("MOSEK", verbose=True, **solver_params)
+        prob_dual_sdp.solve("MOSEK", verbose=verbose, **solver_params)
         assert prob_dual_sdp.value != -np.inf
         Λ_star = sp.dia_array(Λ.value)
 
@@ -191,7 +191,7 @@ class Estimator:
             cons_primal = []
 
             prob_primal = cp.Problem(obj_primal, cons_primal)
-            prob_primal.solve("MOSEK", verbose=True)
+            prob_primal.solve("MOSEK", verbose=verbose)
 
             # Y_r_star = scipy.linalg.cholesky(Z_bar.value) @ V  # Error in paper?
             Y_r_star = V @ scipy.linalg.cholesky(Z_bar.value + self._cholesky_noise * np.eye(r), lower=True).T
@@ -206,6 +206,11 @@ class Estimator:
             # prob_primal.solve("MOSEK", verbose=True)
 
             # Y_r_star = scipy.linalg.cholesky(Z.value + self._cholesky_noise * np.eye(m))
+            Z = prob_dual_sdp.solution.dual_vars.popitem()[1]  # type:ignore
+            Y_r_star = scipy.linalg.cholesky(Z + self._cholesky_noise * np.eye(m), lower=True)
+
+        norms = norm(Y_r_star[:, 0:2], axis=1)
+        if np.any(np.isclose(norms, 0)):
             Z = prob_dual_sdp.solution.dual_vars.popitem()[1]  # type:ignore
             Y_r_star = scipy.linalg.cholesky(Z + self._cholesky_noise * np.eye(m), lower=True)
 
@@ -232,7 +237,7 @@ class Estimator:
         # result_mle_rtr = manopt_optimizer_rtr.run(prob_mle_rtr, initial_point=Y_0.T)
         # Y_mle_star = result_mle_rtr.point.T
 
-        manopt_optimizer = pymanopt.optimizers.ConjugateGradient()
+        manopt_optimizer = pymanopt.optimizers.ConjugateGradient(verbosity=2 * int(verbose))
         prob_mle = pymanopt.Problem(manifold, cost=cost, euclidean_gradient=grad)
         result_mle = manopt_optimizer.run(prob_mle, initial_point=Y_0.T)
         Y_mle_star = result_mle.point.T
@@ -296,13 +301,15 @@ class Estimator:
 
             if norm(grads) < eps * m:
                 # if norm(grads) ** 2 < eps:
-                print("Finished after", it, "iterations; gradient is zero")
+                if verbose:
+                    print("Finished after", it, "iterations; gradient is zero")
                 its_taken = it
                 break
 
             if costs[it] - l_bound < 10 * eps * m:
                 # if norm(grads) ** 2 < eps:
-                print("Finished after", it, "iterations; lower bound achieved")
+                if verbose:
+                    print("Finished after", it, "iterations; lower bound achieved")
                 its_taken = it
                 break
 
