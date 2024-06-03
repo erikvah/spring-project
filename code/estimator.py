@@ -259,6 +259,8 @@ class Estimator:
         init_step: float = 0.1,
         verbose=False,
         kruskal=True,
+        sqrt_inv=False,
+        const=False,
         l_bound=0,
     ):
         l_bound = max(0, l_bound)
@@ -267,6 +269,7 @@ class Estimator:
         X = init_guess.copy()
 
         costs = np.zeros(max_its)
+        stresses = np.zeros(max_its)
 
         step_size = init_step
         grads = np.zeros_like(X)
@@ -274,11 +277,13 @@ class Estimator:
 
         its_taken = max_its
 
+        cost = utils.get_cost(X, indices, d_hat, sigmas, self._alpha)
+
         for it in range(max_its):
             if verbose and (it + 1) % 50 == 0:
                 print(f"Kruskal: Iteration {it+1}")
 
-            costs[it] = utils.get_cost(X, indices, d_hat, sigmas, self._alpha)
+            costs[it] = cost
             grads[:, :] = self._get_grads(X, d_hat, indices, sigmas)
 
             if kruskal:
@@ -291,13 +296,17 @@ class Estimator:
                         costs[max(0, it - 1)],
                         costs[max(0, it - 5)],
                     )
-            else:
-                step_size = 1 / np.sqrt(1 + it)
+            elif sqrt_inv:
+                step_size = init_step / np.sqrt(1 + it)
+            elif const:
+                step_size = init_step
 
             grads_prev[:, :] = grads
 
             step = -grads * step_size
             X = X + step
+
+            cost = utils.get_cost(X, indices, d_hat, sigmas, self._alpha)
 
             if norm(grads) < eps * m:
                 # if norm(grads) ** 2 < eps:
@@ -306,7 +315,7 @@ class Estimator:
                 its_taken = it
                 break
 
-            if costs[it] - l_bound < 10 * eps * m:
+            if cost - l_bound < 10 * eps * m:
                 # if norm(grads) ** 2 < eps:
                 if verbose:
                     print("Finished after", it, "iterations; lower bound achieved")

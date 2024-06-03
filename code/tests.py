@@ -10,7 +10,7 @@ from estimator import Estimator, get_default_ekf_funcs, get_default_params
 from matplotlib.animation import FuncAnimation
 
 
-def run_kruskal_tests():
+def run_kruskal_tests_old():
     np.random.seed(578)
     ns = [4, 10]
     # ns = [50]
@@ -21,7 +21,7 @@ def run_kruskal_tests():
 
     for it, (n, grid) in enumerate(zip(ns, grids)):
         for m in ms[it]:
-            trial_kruskal, trial_naive = kruskal_test(m, n, 5, *grid)
+            trial_kruskal, trial_naive = kruskal_test_old(m, n, 5, *grid)
 
             move_indices_n = [0]
             running_sum = 0
@@ -67,7 +67,7 @@ def run_kruskal_tests():
     #     plt.plot()
 
 
-def kruskal_test(m, n, N, w, h):
+def kruskal_test_old(m, n, N, w, h):
     params = get_default_params()
     funcs = get_default_ekf_funcs(n, params.dt)
     estimator = Estimator(n, params, funcs)
@@ -114,6 +114,106 @@ def kruskal_test(m, n, N, w, h):
     plt.show()
 
     return cost_hists_kruskal, cost_hists_naive
+
+
+def run_kruskal_tests():
+    ns = [6, 10, 15]
+    ms = [[9, 25], [25, 79], [50, 109]]
+    dims = [[3, 2], [5, 2], [5, 3]]
+
+    ns = [4, 10, 15]
+    ms = [7, 45, 210]
+    dims = [[2, 2], [5, 2], [5, 3]]
+
+    fig, axs = plt.subplots(nrows=len(ns), sharex=True)
+    if len(ns) == 1:
+        axs = [axs]
+
+    axs[-1].set_xlabel("Iterations")
+    # fig, axs = plt.subplots(nrows=3)
+    # axs[0].set_title("Kruskal")
+    # axs[1].set_title("Inverse square root")
+    # axs[2].set_title("Constant")
+
+    for it, (n, m, dim) in enumerate(zip(ns, ms, dims)):
+        w, h = dim
+        axs[it].set_title(f"$({n = }, {m = })$")
+
+        trial_kruskal, trial_sqrt_inv, trial_const = kruskal_test(m, n, w, h)
+
+        axs[it].plot(range(len(trial_kruskal)), trial_kruskal, label="Kruskal's method", linestyle="-")
+        axs[it].plot(range(len(trial_sqrt_inv)), trial_sqrt_inv, label="Inverse square root", linestyle="--")
+        axs[it].plot(range(len(trial_const)), trial_const, label="Constant step", linestyle="-.")
+
+        print("trial_kruskal", len(trial_kruskal))
+        print("trial_sqrt", len(trial_sqrt_inv))
+        print("trial_const", len(trial_const))
+
+    #         axs[0].plot(trial_kruskal, label=f"${n = }, {m = }$")
+    #         axs[1].plot(trial_sqrt_inv, label=f"${n = }, {m = }$")
+    #         axs[2].plot(trial_const, label=f"${n = }, {m = }$")
+
+    for ax in axs:
+        ax.legend()
+        # ax.set_yscale("log")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def kruskal_test(m, n, w, h):
+    params = get_default_params()
+    funcs = get_default_ekf_funcs(n, params.dt)
+
+    estimator = Estimator(n, params, funcs)
+
+    X = utils.generate_grid(w, h)
+    X += 100 * np.random.multivariate_normal(np.zeros(2), np.eye(2), size=n)
+    indices = utils.generate_indices(m, n)
+    sigmas = utils.generate_sigmas(m, min=25, max=75)
+    Y = utils.generate_measurements(X, indices, sigmas)
+
+    # Initial solve
+    max_its = 30
+
+    X_hat_re, _, l_bound = estimator.estimate_RE(indices, Y, sigmas, verbose=False)
+    _, cost_kruskal = estimator.estimate_gradient(
+        indices,
+        Y,
+        sigmas,
+        X_hat_re,
+        l_bound=l_bound,
+        verbose=False,
+        kruskal=True,
+        max_its=max_its,
+        init_step=1,
+    )
+    _, cost_sqrt_inv = estimator.estimate_gradient(
+        indices,
+        Y,
+        sigmas,
+        X_hat_re,
+        l_bound=l_bound,
+        verbose=False,
+        kruskal=False,
+        sqrt_inv=True,
+        init_step=10,
+        max_its=max_its,
+    )
+    _, cost_const = estimator.estimate_gradient(
+        indices,
+        Y,
+        sigmas,
+        X_hat_re,
+        l_bound=l_bound,
+        verbose=False,
+        kruskal=False,
+        const=True,
+        init_step=6,
+        max_its=max_its,
+    )
+
+    return cost_kruskal, cost_sqrt_inv, cost_const
 
 
 def run_RE_tests():
@@ -589,7 +689,11 @@ if __name__ == "__main__":
     # kalman_test_plot(15 * 8, 15, 50, 5, 3, (-1, 0.3 * np.pi, True))
 
     # To generate plots for poster:
-    np.random.seed(31415)
-    test_RE_success_rate()
+    # np.random.seed(31415)
+    # test_RE_success_rate()
 
-# Up to 15 targets work, depending on noise and number of connections
+    # More poster plots:
+    np.random.seed(12314)
+    run_kruskal_tests()
+
+# Up to 15 targets work (maybe more?), depending on noise and number of connections
