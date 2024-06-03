@@ -1,3 +1,5 @@
+import json
+
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -186,6 +188,87 @@ def RE_test(m, n, w, h):
     return X, X_hat, X_hat_refined, indices
 
 
+def test_RE_success_rate():
+    N = 50
+    ns = [6, 10, 15]
+    ms = []
+    # ms += [np.linspace(1 * 6, 6 * (6 - 1), 6 - (1 - 1), dtype=int)]
+    ms += [np.linspace(9, 30, 11, dtype=int)]
+    # ms += [np.linspace(2 * 10, 10 * (10 - 1), 10 - (2 - 1), dtype=int)]
+    ms += [np.linspace(20, 90, 21, dtype=int)]
+    # ms += [np.linspace(3 * 15, 15 * (15 - 1), 15 - (3 - 1), dtype=int)]
+    ms += [np.linspace(45, 210, 16, dtype=int)]
+    dims = [[3, 2], [5, 2], [5, 3]]
+
+    success_rates = {n: {} for n in ns}
+
+    for i, (n, dim) in enumerate(zip(ns, dims)):
+        w, h = dim
+        for m in ms[i]:
+            print(f"{n = } \t {m = }")
+            s_rate = RE_success_rate(m, n, N, w, h, verbose=False)
+            success_rates[n][int(m)] = int(s_rate * 100)
+
+    print(json.dumps(success_rates, indent=2))
+
+    fig, axs = plt.subplots(len(ns))
+
+    if len(ns) == 1:
+        axs = [axs]
+
+    for i, n in enumerate(ns):
+        axs[i].plot(
+            ms[i], [success_rates[n][m] for m in ms[i]], color="#8C1515", marker="x", markersize=10, linestyle="--"
+        )
+        axs[i].set_xlabel("m")
+        axs[i].set_ylabel("Success rate [%]")
+        axs[i].set_title(f"{n = }")
+
+    plt.tight_layout()
+    plt.show()
+
+
+def RE_success_rate(m, n, N, w, h, verbose=False):
+    successes = 0
+    for it in range(N):
+        params = get_default_params()
+        funcs = get_default_ekf_funcs(n, params.dt)
+
+        estimator = Estimator(n, params, funcs)
+
+        X = utils.generate_grid(w, h)
+        X += 100 * np.random.multivariate_normal(np.zeros(2), np.eye(2), size=n)
+        indices = utils.generate_indices(m, n)
+        sigmas = utils.generate_sigmas(m, min=25, max=25)
+        Y = utils.generate_measurements(X, indices, sigmas)
+
+        # Initial solve
+        X_hat_re, _, l_bound = estimator.estimate_RE(indices, Y, sigmas, verbose=verbose)
+        X_hat_k, _ = estimator.estimate_gradient(indices, Y, sigmas, X_hat_re, l_bound=l_bound, verbose=verbose)
+
+        X_norm, X_hat_re_norm, re_cost = scipy.spatial.procrustes(X, X_hat_re)
+        X_norm, X_hat_k_norm, k_cost = scipy.spatial.procrustes(X, X_hat_k)
+
+        if verbose:
+            print(f"Iteration: {it} \t Max dist: {np.linalg.norm(X_norm - X_hat_k_norm, axis=1).max()}")
+
+        # if k_cost < 0.01:
+        if np.linalg.norm(X_norm - X_hat_k_norm, axis=1).max() < 0.1:
+            successes += 1
+            # print(f"{it}: Success")
+        else:
+            # print("Failure")
+            pass
+
+        # plt.scatter(X_norm[:, 0], X_norm[:, 1], label="Real", marker="o", s=90)
+        # plt.scatter(X_hat_re_norm[:, 0], X_hat_re_norm[:, 1], label="Estimate", marker="+", s=90)
+        # plt.scatter(X_hat_k_norm[:, 0], X_hat_k_norm[:, 1], label="Refined", marker="x", s=90)
+        # plt.legend()
+        # plt.show()
+
+    return successes / N
+
+
 def kalman_test_map(m, n, N, w, h):
     # Initialize
     params = get_default_params()
@@ -371,7 +454,7 @@ def kalman_test_plot(m, n, N, w, h, angle_params):
     states = np.hstack((X, thetas))
 
     indices = utils.generate_indices(m, n)
-    sigmas = utils.generate_sigmas(m, min=200, max=200)
+    sigmas = utils.generate_sigmas(m, min=25, max=75)
     Y = utils.generate_measurements(X, indices, sigmas)
 
     # Initial solve
@@ -458,26 +541,29 @@ def kalman_test_plot(m, n, N, w, h, angle_params):
         state_std[:, 2, :] = state_hist[:, 2, :]
         est_std[:, 2, :] = sign * est_hist[:, 2, :] + offset
 
-    fig, axs = plt.subplots(n // 3, 3, sharex=True)
+    fig, axs = plt.subplots(n // 4, 3, sharex=True)
 
     axs[-1, 0].set_xlabel("Iteration")
     axs[-1, 1].set_xlabel("Iteration")
     axs[-1, 2].set_xlabel("Iteration")
-    for k in range(n // 3):
-        axs[k, 0].plot(state_std[k, 0, :], label="Real", linestyle="--")
-        axs[k, 0].plot(est_std[k, 0, :], label="Est")
+    for k in range(n // 4):
+        axs[k, 0].plot(state_std[k, 0, :], label="Real", linestyle="-")
+        axs[k, 0].plot(est_std[k, 0, :], label="Est", linestyle="--")
+        # axs[k, 0].scatter(range(N), est_std[k, 0, :], label="Est", marker="x", c="C4")
         # axs[k, 0].plot(np.linalg.norm(est_std[k, :2, :] - state_std[k, :2, :], axis=0))
         # axs[k, 0].set_title("$||r_{pos}||^2_2$")
         axs[k, 0].set_title(f"Robot {k+1} $x$")
         # axs[k, 0].legend()
 
-        axs[k, 1].plot(state_std[k, 1, :], label="Real", linestyle="--")
-        axs[k, 1].plot(est_std[k, 1, :], label="Est")
+        axs[k, 1].plot(state_std[k, 1, :], label="Real", linestyle="-")
+        axs[k, 1].plot(est_std[k, 1, :], label="Est", linestyle="--")
+        # axs[k, 1].scatter(range(N), est_std[k, 1, :], label="Est", marker="x", c="C4")
         axs[k, 1].set_title(f"Robot {k+1} $y$")
         # axs[k, 1].legend()
 
-        axs[k, 2].plot(state_std[k, 2, :], label="Real", linestyle="--")
-        axs[k, 2].plot(est_std[k, 2, :], label="Est")
+        axs[k, 2].plot(state_std[k, 2, :], label="Real", linestyle="-")
+        axs[k, 2].plot(est_std[k, 2, :], label="Est", linestyle="--")
+        # axs[k, 2].scatter(range(N), est_std[k, 2, :], label="Est", marker="x", c="C4")
         axs[k, 2].set_title(f"Robot {k+1} $\\theta$")
         # axs[k, 2].legend()
 
@@ -499,7 +585,11 @@ if __name__ == "__main__":
     # kalman_test_plot(20, , 100, 3, 2, (+1, 1 * np.pi))
 
     # To generate plots:
-    np.random.seed(3155)
-    kalman_test_plot(45, 10, 100, 5, 2, (-1, -4.5 * np.pi, True))
+    # np.random.seed(42)
+    # kalman_test_plot(15 * 8, 15, 50, 5, 3, (-1, 0.3 * np.pi, True))
+
+    # To generate plots for poster:
+    np.random.seed(31415)
+    test_RE_success_rate()
 
 # Up to 15 targets work, depending on noise and number of connections
