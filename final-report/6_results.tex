@@ -1,26 +1,25 @@
-\subsection{Contributions}
-So far, the Riemannian Elevator and Kruskal's gradient descent algorithm have been implemented. The only thing that remains is adding the EKF to track points over time. Preliminary results show that even without the Kalman prediction step, the points are able to be tracked quite well. 
-
-The EKF has yet to be implemented.
-\subsection{Empirical Results}
-Below are some graphs of empirical test using the implemented algorithms. Firstly, in figure~\ref{fig:kruskal} is a comparison between Kruskal's step size and $\frac{1}{\sqrt{k}}$ step. A number of robot positions and directions were generated, and their approximate positions were provided as initial guesses for the algorithms. After a set number of iterations or after the algorithms had converged, the robot moved a fixed distance in their chosen direction, and the algorithms we run again, this time with their previous guess as an initial guess.
+Below are some graphs of empirical test using the implemented algorithms. Firstly, in figure~\ref{fig:kruskal} is a comparison between Kruskal's step size, constant step size, and $\frac{1}{\sqrt{k}}$ step. A number of robot positions and directions were generated, and their approximate positions were provided as initial guesses for the algorithms. 
+% \begin{figure}[ht]
+%     \centering
+%     \begin{subfigure}{\linewidth}
+%         \includegraphics[width=\textwidth,trim=50 0 50 10, clip]{kruskal_5_4.png}
+%         \caption{Smaller tracking example with $n=4$ robots and $m=5$ measurements}
+%     \end{subfigure}
+%     \begin{subfigure}{\linewidth}
+%         \includegraphics[width=\textwidth,trim=50 0 50 10, clip]{kruskal_40_10.png}
+%         \caption{Larger tracking example with $n=10$ robots and $m=40$ measurements}
+%     \end{subfigure}
+%     \caption{Two different cases of robot tracking. } \label{fig:kruskal}
+% \end{figure}
 \begin{figure}[ht]
     \centering
-    \begin{subfigure}{\linewidth}
-        \includegraphics[width=\textwidth,trim=50 0 50 10, clip]{kruskal_5_4.png}
-        \caption{Smaller tracking example with $n=4$ robots and $m=5$ measurements}
-    \end{subfigure}
-    \begin{subfigure}{\linewidth}
-        \includegraphics[width=\textwidth,trim=50 0 50 10, clip]{kruskal_40_10.png}
-        \caption{Larger tracking example with $n=10$ robots and $m=40$ measurements}
-    \end{subfigure}
-    \caption{Two different cases of robot tracking. } \label{fig:kruskal}
+    \includesvg[width=\linewidth]{kruskal.svg}
+    \caption{Comparison of convergence speeds for the different algorithms.}
+    \label{fig:kruskal}
 \end{figure}
-
-As is plainly visible in the graphs, Kruskal's algorithm vastly outperforms the standard step size in convergence rate. 
+The plots above cover a range of reasonable values for $n$ and $m$. For values larger than this, the Riemannian elevator takes too much time and memory to run. While the difference in speed is not large, it should be noted that Kruskal's algorithm requires virtually no tuning, while the other two step schedules required tuning to achieve good performance. Nonetheless, it is not a large improvement and is not key to the success of the tracking algorithm. 
 
 In figure~\ref{fig:riemann}, the point estimation from distance measurements is showcased. A number of points were generated with noisy distance measurements between them. These values were passed to the Riemannian elevator which generated an initial estimate of the positions, which were further refined by Kruskal's gradient descent method.
-
 \begin{figure}[ht]
     \centering
     \begin{subfigure}{\linewidth}
@@ -33,4 +32,14 @@ In figure~\ref{fig:riemann}, the point estimation from distance measurements is 
     \end{subfigure}
     \caption{Position estimation from only distance measurements. While there is ambiguity in the rotation and positions of the estimates, they have been rotated and translated to align with the true value for clarity.} \label{fig:riemann}
 \end{figure}
-
+Further, in figure~\ref{fig:RE-accuracy}, we see the overall accuracy performance of the combined Riemannian elevator and gradient descent. For a graph with a given number of vertices $n$, the number of ways to connect two of the vertices with a directed edge is given by 
+\begin{align}
+    P(n, 2) = \frac{n!}{(n-2)!} = n (n-1)
+\end{align}
+Therefore, we can determine experimentally that at fewer vertices, $50\%$ accuracy is achieved when around $50\%$ of the possible edges are utilized. As the number of vertices grows, the number of required edges for $50\%$ accuracy shrinks down to about $30\%$. While this is in no way conclusive, and obviously dependant on the level of noise, it does show the power of the Riemannian elevator. Without it, some scheme of random initialization of points would have to be devised.
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=\linewidth]{RE_accuracy.svg}
+    \caption{These plots show the success rate of the Riemannian elevator to provide an initial point for which the subsequent gradient descent step converges to the correct arrangement of vertices.}
+    \label{fig:RE-accuracy}
+\end{figure}
