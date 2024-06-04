@@ -13,8 +13,8 @@ It will henceforth generally be assumed that while the measurements $y_{i,j}$ ar
 This problem is not new. One early approach to solve it was presented by Kruskal in \cite{Kruskal1964}. He proposed a measurement of good fit, or loss, named the stress function: 
 \begin{align}
     \label{eq:kruskal-stress}
-    S(\mathbf{x}^{(1)}_t, ..., \mathbf{x}^{(N)}_t) = \sum_{i,j} \left(
-        \norm{\mathbf{x}^{(i)}_t - \mathbf{x}^{(j)}_t}_2 - y^{(i, j)}_t
+    S(x^{(1)}, ..., x^{(N)}) = \sum_{i,j} \left(
+        \norm{x^{(i)} - x^{(j)}}_2 - y^{(i, j)}
     \right)^2
 \end{align}
 More accurately, Kruskal proposed a normalized version of equation~\ref{eq:kruskal-stress}, but for the purposes of this project the unnormalized version is sufficient. This function is non-convex, so iterative optimization algorithms such as gradient descent or ADMM generally converge to local minima, which necessitates a good initial guess. This algorithm will hereafter be called stress minimization in this paper.

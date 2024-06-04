@@ -5,3 +5,9 @@
     \item Distributed? 
     \item Limitations, Future Work, and Conclusions
 \end{itemize}
+
+
+\subsection{Coordinate System}
+Any solution to the stress minimization problem, either local or global is not unique. Since the stress function is invariant under translation, rotation, and mirroring, there is no way to determine a coordinate system matching some world coordinates. Therefore, any chosen coordinate system is as valid as any other. Initially, the Riemannian elevator is used to get estimates of the positions of the robots. This initial guess gives us the coordinate system to use in future time steps. However, when tracking the positions over longer a longer time horizon, it probable that the coordinate system will begin to drift. This means that, even though a point may have the same coordinates at two different time steps, $x^{(i)}_t = x^{(i)}_\tau$ for $t \neq \tau$, the real robot might not be at the same position at those two time steps. This is a fundamental limitation of the problem setup, as there is no measurements of the outside world. To remedy this, outside anchors could be provided which would both give a reference coordinate frame, as well as enable other localization algorithms like traditional SLAM. 
+
+Ultimately, these are issues innate to the chosen problem, and even if the relative localization problem was solved globally, they would still persist. As such, we make no effort to solve these as the relative localization problem remains interesting regardless of limitations.
