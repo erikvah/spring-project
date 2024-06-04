@@ -55,3 +55,34 @@ Therefore, we can determine experimentally that at fewer vertices, $50\%$ accura
     \caption{These plots show the success rate of the Riemannian elevator to provide an initial point for which the subsequent gradient descent step converges to the correct arrangement of vertices.}
     \label{fig:RE-accuracy}
 \end{figure}
+
+Finally, below in figures~\ref{fig:multi-track} and~\ref{fig:single-track} are some plots of the complete tracking pipeline. It is clear that, while the system is capable of tracking positions with noisy incomplete measurements, the orientation tracking performance degrades and eventually diverges with larger noise. 
+\begin{figure*}
+    \begin{subfigure}{0.49\linewidth}
+        \includesvg[width=\linewidth]{m45_n10_s0.svg}
+        \caption{$n=10, m=45$. No noise.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.49\linewidth}
+        \includesvg[width=\linewidth]{m45_n10_s200.svg}
+        \caption{$n=10, m=45$. Large noise.}
+    \end{subfigure}
+    \begin{subfigure}{0.49\linewidth}
+        \includesvg[width=\linewidth]{m90_n10_s0.svg}
+        \caption{$n=10, m=90$. No noise.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.49\linewidth}
+        \includesvg[width=\linewidth]{m90_n10_s200.svg}
+        \caption{$n=10, m=90$. Large noise.}
+    \end{subfigure}
+    \caption{Sample tracking performance for $n=10$ robots with varying numbers of measurements and noise. Dashed line is ground truth, red line is estimated state.}
+    \label{fig:multi-track}
+\end{figure*}
+\FloatBarrier
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=\linewidth]{m120_n15_s50.svg}
+    \caption{Tracking $n=15$ robots with $m=120$ measurements, e.g. $57\%$ connectivity, with reasonable noise.}
+    \label{fig:single-track}
+\end{figure}
