@@ -19,19 +19,31 @@ Below are some graphs of empirical test using the implemented algorithms. Firstl
 \end{figure}
 The plots above cover a range of reasonable values for $n$ and $m$. For values larger than this, the Riemannian elevator takes too much time and memory to run. While the difference in speed is not large, it should be noted that Kruskal's algorithm requires virtually no tuning, while the other two step schedules required tuning to achieve good performance. Nonetheless, it is not a large improvement and is not key to the success of the tracking algorithm. 
 
-In figure~\ref{fig:riemann}, the point estimation from distance measurements is showcased. A number of points were generated with noisy distance measurements between them. These values were passed to the Riemannian elevator which generated an initial estimate of the positions, which were further refined by Kruskal's gradient descent method.
+In figures~\ref{fig:point-est-small} and~\ref{fig:point-est-large}, the point estimation from distance measurements is showcased. A number of points were generated with noisy distance measurements between them. These values were passed to the Riemannian elevator which generated an initial estimate of the positions, which were further refined by Kruskal's gradient descent method.
 \begin{figure}[ht]
     \centering
-    \begin{subfigure}{\linewidth}
-        \includegraphics[width=\textwidth,trim=0 20 0 30, clip]{point_est_5_4.png}
-        \caption{A smaller example of position estimation}
-    \end{subfigure}
-    \begin{subfigure}{\linewidth}
-        \includegraphics[width=\textwidth,trim=0 20 0 30, clip]{point_est_85_10.png}
-        \caption{A larger example of position estimation}
-    \end{subfigure}
-    \caption{Position estimation from only distance measurements. While there is ambiguity in the rotation and positions of the estimates, they have been rotated and translated to align with the true value for clarity.} \label{fig:riemann}
+    \includegraphics[width=\linewidth,trim=0 20 0 30, clip]{point_est_5_4.png}
+    \caption{A smaller example of point estimation.}
+    \label{fig:point-est-small}
 \end{figure}
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth,trim=0 20 0 30, clip]{point_est_85_10.png}
+    \caption{A larger example of point estimation.}
+    \label{fig:point-est-large}
+\end{figure}
+% \begin{figure}[ht]
+%     \centering
+%     \begin{subfigure}{\linewidth}
+%         \includegraphics[width=\textwidth,trim=0 20 0 30, clip]{point_est_5_4.png}
+%         \caption{A smaller example of position estimation}
+%     \end{subfigure}
+%     \begin{subfigure}{\linewidth}
+%         \includegraphics[width=\textwidth,trim=0 20 0 30, clip]{point_est_85_10.png}
+%         \caption{A larger example of position estimation}
+%     \end{subfigure}
+%     \caption{Position estimation from only distance measurements. While there is ambiguity in the rotation and positions of the estimates, they have been rotated and translated to align with the true value for clarity.} \label{fig:riemann}
+% \end{figure}
 Further, in figure~\ref{fig:RE-accuracy}, we see the overall accuracy performance of the combined Riemannian elevator and gradient descent. For a graph with a given number of vertices $n$, the number of ways to connect two of the vertices with a directed edge is given by 
 \begin{align}
     P(n, 2) = \frac{n!}{(n-2)!} = n (n-1)
