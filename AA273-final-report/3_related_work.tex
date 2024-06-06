@@ -1,0 +1,32 @@
+The problem formulated in section~\ref{sec:intro} is usually in the literature reformulated as a graph problem, see figure~\ref{fig:problem-graph}. The measurements are interpreted as the edge weights and the positions are interpreted as vertex positions. 
+% \begin{figure}[ht]
+%     \centering
+%     \includegraphics[width=\linewidth,trim=31mm 48mm 106mm 15mm, clip]{graph.pdf}
+%     \caption{Problem reformulation. In the figure, we have a graph $\mathcal{G}=(\mathcal{V}, \mathcal{E})$ where the edges $(i, j) \in \mathcal{E}$ have weights $y_{i,j}$ and the vertices $k \in \mathcal{V}$ have positions $\bar{x}_k$.}
+%     \label{fig:problem-graph}
+% \end{figure}
+
+In practice, it is rarely the case that the correspondences between robots are known without sophisticated identification algorithms using computer vision or other computationally complex methods. This is known as the anonymous localization problem, and it has been investigated by Franchi, Oriolo and Stegagno~\cite{anonymous_loc_1,anonymous_loc_2,anonymous_loc_3}. They developed a few algorithms to account for the missing correspondences by using statistical methods to simultaneously estimate multiple possible relative poses to determine the most likely correspondences. However, this markedly increases the complexity of the problem and will not be the focus of this project.
+
+It will henceforth generally be assumed that while the measurements $y_{i,j}$ are not complete, i.e. all robots do not have measurements of every other robot, the correspondences are known. That is to say, for all measurements $y$, it is known which distance between two robots this is a measurement of. 
+
+This problem is not new. One early approach to solve it was presented by Kruskal in \cite{Kruskal1964}. He proposed a measurement of good fit, or loss, named the stress function: 
+\begin{align}
+    \label{eq:kruskal-stress}
+    S(x^{(1)}, ..., x^{(N)}) = \sum_{i,j} \left(
+        \norm{x^{(i)} - x^{(j)}}_2 - y^{(i, j)}
+    \right)^2
+\end{align}
+More accurately, Kruskal proposed a normalized version of equation~\ref{eq:kruskal-stress}, but for the purposes of this project the unnormalized version is sufficient. This function is non-convex, so iterative optimization algorithms such as gradient descent or ADMM generally converge to local minima, which necessitates a good initial guess. This algorithm will hereafter be called stress minimization in this paper.
+
+In a companion paper, Kruskal provided a description of how to solve this problem using gradient descent~\cite{kruskal1964implementation}. Of interest to this project is the gradient that Kruskal determined. It should be noted that the stress function is non-differentiable and non-convex, so while Kruskal calls it a gradient, it is not necessarily so. Nonetheless, the stress minimization algorithm presented by Kruskal show empirically good results, so this this paper will continue with the slight abuse of notation. In addition to how do calculate the gradient of the stress function, the paper also presents a way to determine the step sizes in gradient descent. For a complete description of the algorithm, see~\cite{kruskal1964implementation}.
+
+An alternative algorithm was proposed in~\cite{MDS_proposal} by De Leeuw. THe algorithm is called Scaling by MAjorizing a COmplicated Function (SMACOF), and it iteratively minimizes an upper bound of the stress function. Further investigated by De Leeuw in~\cite{SMACOF_convergence}, it has been proven to converge to a local minima of the stress function. However, this also requires a good initial guess to converge to a good optimum. 
+
+These methods, while prone to local minima, can still be useful due to their simplicity when given a sufficiently good initial guess. 
+
+In the field of sensor network localization, meaning many agents are deployed in an environment without knowledge of their positions, this problem has also been investigated. The main distinction with the robot localization problem is that authors generally assume that at least some positions known as anchors are known~\cite{WSN_collaborative,WSN_localization_techniques,optimization_WSN,WSN_stochastic}. 
+
+% Authors in these fields present additional methods of solving this problem, with different advantages and drawbacks. One technique is Particle Swarm Optimization (PSO), where a collection of particles explore the n-dimensional space to find optima~\cite{WSN_particles}. Building on this, Zhou and Chen gave a stochastic approach in~\cite{WSN_stochastic}, which finds the global optimum with high probability. 
+
+Recently, there has been some advancements in solving the distance-based localization problem. An algorithm developed by Halsted and Schwager dubbed the Riemannian Elevator has been proposed which has better guarantees than either stress minimization or SMACOF. A full description of the algorithm is outside the scope of this paper, but in essence, instead of optimizing over the positions directly, it instead optimizes over an expanded $r$-dimensional Riemannian manifold of unit vectors for $r >= 2$. The solution is then projected into $2$ dimensions. It also provides a non-trivial lower bound on the provided solution. For a more thorough description, see~\cite{R_elevator}. 
