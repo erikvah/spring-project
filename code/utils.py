@@ -1,4 +1,4 @@
-import time
+import timeit
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -48,7 +48,7 @@ def generate_indices(m, n):
 
 
 def generate_measurements(X, indices, sigmas):
-    measurements = np.linalg.norm(X[indices[:, 0]] - X[indices[:, 1]], axis=1) + np.random.normal(scale=sigmas)
+    measurements = np.linalg.norm(X[indices[:, 0]] - X[indices[:, 1]], axis=1) + np.random.normal(scale=np.sqrt(sigmas))
 
     return measurements
 
@@ -206,11 +206,11 @@ def generate_sigmas(m, min=0.1, max=10.0):
 
 def tick():
     global __t0
-    __t0 = time.time()
+    __t0 = timeit.default_timer()
 
 
 def tock():
-    t = time.time()
+    t = timeit.default_timer()
     global __t0
     diff = t - __t0
     return diff

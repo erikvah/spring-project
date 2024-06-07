@@ -322,7 +322,7 @@ class Estimator:
                 its_taken = it
                 break
 
-        return X, costs[:its_taken]
+        return X, costs[: its_taken + 1]
 
     def set_priors(self, xs, uncertainty):
         self._kf.μ[::3] = xs[:, 0]
