@@ -161,7 +161,53 @@ def run_kruskal_tests():
     plt.show()
 
 
-def kruskal_test(m, n, w, h):
+def run_kruskal_tests2():
+    n = 4
+    m = 7
+    dim = [2, 2]
+
+    params_list = [[0.1, 10, 10], [0.2, 20, 20], [0.4, 40, 40]]
+    styles = ["-", "--", "-."]
+
+    fig, axs = plt.subplots(nrows=3, sharex=False)
+    axs[-1].set_xlabel("Iterations")
+
+    for it, params in enumerate(params_list):
+        w, h = dim
+        axs[0].set_title(f"Kruskal's method")
+        axs[1].set_title(f"Inverse square root")
+        axs[2].set_title(f"Constant step size")
+        np.random.seed(31415)
+
+        # # Disable cases that do not work
+        # if params[1] > 20:
+        #     params[1] = 21
+        # if params[2] > 20:
+        #     params[2] = 21
+        trial_kruskal, trial_sqrt_inv, trial_const = kruskal_test(m, n, w, h, *params, max_its=200)
+
+        axs[0].plot(range(len(trial_kruskal)), trial_kruskal, label=f"$\\alpha_0={params[0]}$", linestyle=styles[it])
+        if params[1] <= 200:
+            axs[1].plot(
+                range(len(trial_sqrt_inv)),
+                trial_sqrt_inv,
+                label=f"$\\frac{{{params[1]}}}{{\\sqrt{{k}}}}$",
+                linestyle=styles[it],
+            )
+        if params[2] <= 200:
+            axs[2].plot(range(len(trial_const)), trial_const, label=f"$\\alpha={params[2]}$", linestyle=styles[it])
+
+    for ax in axs:
+        ax.legend()
+        ax.set_yscale("log")
+        ax.set_ylim([1e-1, 2e3])
+
+    plt.suptitle(f"Comparison for ${n = }, {m = }$")
+    plt.tight_layout()
+    plt.show()
+
+
+def kruskal_test(m, n, w, h, kruskal_init=1, sqrt_inv_init=10, const_init=6, max_its=30):
     params = get_default_params()
     funcs = get_default_ekf_funcs(n, params.dt)
 
@@ -174,8 +220,6 @@ def kruskal_test(m, n, w, h):
     Y = utils.generate_measurements(X, indices, sigmas)
 
     # Initial solve
-    max_its = 30
-
     X_hat_re, _, l_bound = estimator.estimate_RE(indices, Y, sigmas, verbose=False)
     _, cost_kruskal = estimator.estimate_gradient(
         indices,
@@ -186,7 +230,7 @@ def kruskal_test(m, n, w, h):
         verbose=False,
         kruskal=True,
         max_its=max_its,
-        init_step=1,
+        init_step=kruskal_init,
     )
     _, cost_sqrt_inv = estimator.estimate_gradient(
         indices,
@@ -197,7 +241,7 @@ def kruskal_test(m, n, w, h):
         verbose=False,
         kruskal=False,
         sqrt_inv=True,
-        init_step=10,
+        init_step=sqrt_inv_init,
         max_its=max_its,
     )
     _, cost_const = estimator.estimate_gradient(
@@ -209,7 +253,7 @@ def kruskal_test(m, n, w, h):
         verbose=False,
         kruskal=False,
         const=True,
-        init_step=6,
+        init_step=const_init,
         max_its=max_its,
     )
 
@@ -288,7 +332,7 @@ def RE_test(m, n, w, h):
     return X, X_hat, X_hat_refined, indices
 
 
-def test_RE_success_rate():
+def test_success_rates():
     N = 50
     ns = [6, 10, 15]
     ms = []
@@ -300,16 +344,27 @@ def test_RE_success_rate():
     ms += [np.linspace(45, 210, 16, dtype=int)]
     dims = [[3, 2], [5, 2], [5, 3]]
 
-    success_rates = {n: {} for n in ns}
+    success_rates_RE = {n: {} for n in ns}
+    success_rates_guess = {n: {} for n in ns}
+
+    times_RE = {n: {} for n in ns}
+    times_guess = {n: {} for n in ns}
 
     for i, (n, dim) in enumerate(zip(ns, dims)):
         w, h = dim
         for m in ms[i]:
             print(f"{n = } \t {m = }")
+            utils.tick()
             s_rate = RE_success_rate(m, n, N, w, h, verbose=False)
-            success_rates[n][int(m)] = int(s_rate * 100)
+            t = utils.tock()
+            success_rates_RE[n][int(m)] = int(s_rate * 100)
+            times_RE[n][int(m)] = t / N
 
-    print(json.dumps(success_rates, indent=2))
+            utils.tick()
+            s_rate = random_success_rate(m, n, N, w, h, verbose=False)
+            t = utils.tock()
+            success_rates_guess[n][int(m)] = int(s_rate * 100)
+            times_guess[n][int(m)] = t / N
 
     fig, axs = plt.subplots(len(ns))
 
@@ -318,10 +373,57 @@ def test_RE_success_rate():
 
     for i, n in enumerate(ns):
         axs[i].plot(
-            ms[i], [success_rates[n][m] for m in ms[i]], color="#8C1515", marker="x", markersize=10, linestyle="--"
+            ms[i],
+            [success_rates_RE[n][m] for m in ms[i]],
+            color="#8C1515",
+            marker="x",
+            markersize=10,
+            linestyle="--",
+            label="Riemannian Elevator",
         )
+        axs[i].plot(
+            ms[i],
+            [success_rates_guess[n][m] for m in ms[i]],
+            color="C2",
+            marker="+",
+            markersize=10,
+            linestyle=":",
+            label="Random Guess",
+        )
+        axs[i].legend()
         axs[i].set_xlabel("m")
         axs[i].set_ylabel("Success rate [%]")
+        axs[i].set_title(f"{n = }")
+
+    plt.tight_layout()
+
+    fig, axs = plt.subplots(len(ns))
+
+    if len(ns) == 1:
+        axs = [axs]
+
+    for i, n in enumerate(ns):
+        axs[i].plot(
+            ms[i],
+            [times_RE[n][m] for m in ms[i]],
+            color="#8C1515",
+            marker="x",
+            markersize=10,
+            linestyle="--",
+            label="Riemannian Elevator",
+        )
+        axs[i].plot(
+            ms[i],
+            [times_guess[n][m] for m in ms[i]],
+            color="C2",
+            marker="+",
+            markersize=10,
+            linestyle=":",
+            label="Random Guess",
+        )
+        axs[i].legend()
+        axs[i].set_xlabel("m")
+        axs[i].set_ylabel("Runtime")
         axs[i].set_title(f"{n = }")
 
     plt.tight_layout()
@@ -672,6 +774,125 @@ def kalman_test_plot(m, n, N, w, h, angle_params):
     plt.show()
 
 
+def run_random_solve_test():
+    # N = 20
+    # ns = [4, 7, 10]
+    # ms = []
+    # # ms += [np.linspace(9, 30, 11, dtype=int)]
+    # ms += [np.linspace(4, 12, 9, dtype=int)]
+    # ms += [np.linspace(10, 35, 13, dtype=int)]
+    # ms += [np.linspace(31, 90, 15, dtype=int)]
+    # # dims = [[3, 2], [5, 2], [5, 3]]
+    # dims = [[2, 2], [7, 1], [5, 2]]
+
+    # Ns_needed = {n: {} for n in ns}
+
+    # for i, (n, dim) in enumerate(zip(ns, dims)):
+    #     w, h = dim
+    #     for m in ms[i]:
+    #         print(f"{n = } \t {m = }")
+    #         X = utils.generate_random_positions(n)
+    #         indices = utils.generate_indices(m, n)
+    #         sigmas = utils.generate_sigmas(m, 1, 10)
+    #         Y = utils.generate_measurements(X, indices, sigmas)
+
+    #         _, N_needed = solve_randomly(X, Y, indices, sigmas, N)
+
+    #         Ns_needed[n][int(m)] = N_needed
+
+    # print(json.dumps(Ns_needed, indent=2))
+
+    N = 50
+    ns = [6, 10, 15]
+    ms = []
+    # ms += [np.linspace(1 * 6, 6 * (6 - 1), 6 - (1 - 1), dtype=int)]
+    ms += [np.linspace(9, 30, 11, dtype=int)]
+    # ms += [np.linspace(2 * 10, 10 * (10 - 1), 10 - (2 - 1), dtype=int)]
+    ms += [np.linspace(20, 90, 21, dtype=int)]
+    # ms += [np.linspace(3 * 15, 15 * (15 - 1), 15 - (3 - 1), dtype=int)]
+    ms += [np.linspace(45, 210, 16, dtype=int)]
+    dims = [[3, 2], [5, 2], [5, 3]]
+
+    success_rates = {n: {} for n in ns}
+
+    for i, (n, dim) in enumerate(zip(ns, dims)):
+        w, h = dim
+        for m in ms[i]:
+            print(f"{n = } \t {m = }")
+            s_rate = random_success_rate(m, n, N, w, h, verbose=False)
+            success_rates[n][int(m)] = int(s_rate * 100)
+
+    print(json.dumps(success_rates, indent=2))
+
+
+def random_success_rate(m, n, N, w, h, verbose):
+    successes = 0
+    for it in range(N):
+        params = get_default_params()
+        funcs = get_default_ekf_funcs(n, params.dt)
+
+        estimator = Estimator(n, params, funcs)
+
+        X = utils.generate_grid(w, h)
+        X += 100 * np.random.multivariate_normal(np.zeros(2), np.eye(2), size=n)
+        indices = utils.generate_indices(m, n)
+        sigmas = utils.generate_sigmas(m, min=25, max=25)
+        Y = utils.generate_measurements(X, indices, sigmas)
+
+        X_0 = np.vstack([np.random.uniform(0, 1600, size=n), np.random.uniform(0, 900, size=n)]).T
+
+        X_hat, _ = estimator.estimate_gradient(indices, Y, sigmas, X_0, verbose=verbose)
+
+        X_norm, X_hat_norm, _ = scipy.spatial.procrustes(X, X_hat)
+
+        if verbose:
+            print(f"Iteration: {it} \t Max dist: {np.linalg.norm(X_norm - X_hat_norm, axis=1).max()}")
+
+        # if k_cost < 0.01:
+        if np.linalg.norm(X_norm - X_hat_norm, axis=1).max() < 0.1:
+            successes += 1
+            # print(f"{it}: Success")
+        else:
+            # print("Failure")
+            pass
+
+        # plt.scatter(X_norm[:, 0], X_norm[:, 1], label="Real", marker="o", s=90)
+        # plt.scatter(X_hat_re_norm[:, 0], X_hat_re_norm[:, 1], label="Estimate", marker="+", s=90)
+        # plt.scatter(X_hat_k_norm[:, 0], X_hat_k_norm[:, 1], label="Refined", marker="x", s=90)
+        # plt.legend()
+        # plt.show()
+
+    return successes / N
+
+
+# def solve_randomly(X, measurements, indices, sigmas):
+#     d_hat = measurements
+#     n = X.shape[0]
+#     m = d_hat.shape[0]
+
+#     params = get_default_params()
+#     funcs = get_default_ekf_funcs(n, params.dt)
+#     estimator = Estimator(n, params, funcs)
+
+#     N_needed = N
+
+#     X_0 = np.vstack([np.random.uniform(0, 1600, size=n), np.random.uniform(0, 900, size=n)]).T
+
+#     X_hat, costs, Xs = estimator.estimate_gradient(indices, measurements, sigmas, X_0)
+
+#     X_norm, X_hat_norm, _ = scipy.spatial.procrustes(X, X_hat)
+
+#     # X_tilde, _, _ = estimator.estimate_RE(indices, measurements, sigmas)
+#     # X_tilde, _, _ = estimator.estimate_gradient(indices, measurements, sigmas, X_tilde, verbose=False, eps=1e-6)
+#     # X_norm, X_tilde_norm, _ = scipy.spatial.procrustes(X, X_tilde)
+#     # plt.scatter(X_norm[:, 0], X_norm[:, 1], marker="x", label="X")
+#     # plt.scatter(X_tilde_norm[:, 0], X_tilde_norm[:, 1], marker="+", label="X_tilde")
+#     # plt.legend()
+#     # plt.show()
+
+#     return X_hat
+
+
 if __name__ == "__main__":
     plt.style.use("bmh")
     np.seterr("raise")
@@ -690,10 +911,15 @@ if __name__ == "__main__":
 
     # To generate plots for poster:
     # np.random.seed(31415)
-    # test_RE_success_rate()
+    # test_success_rates()
 
     # More poster plots:
-    np.random.seed(12314)
-    run_kruskal_tests()
+    # np.random.seed(12314)
+    # run_kruskal_tests()
+
+    # np.random.seed(31415)
+    # run_random_solve_test()
+
+    run_kruskal_tests2()
 
 # Up to 15 targets work (maybe more?), depending on noise and number of connections
