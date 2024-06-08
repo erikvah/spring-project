@@ -139,11 +139,20 @@ def run_kruskal_tests():
         w, h = dim
         axs[it].set_title(f"$({n = }, {m = })$")
 
-        trial_kruskal, trial_sqrt_inv, trial_const = kruskal_test(m, n, w, h)
+        trial_kruskal, trial_sqrt_inv, trial_const = kruskal_test(
+            m,
+            n,
+            w,
+            h,
+            max_its=50,
+            kruskal_init=0.4,
+            sqrt_inv_init=10,
+            const_init=10,
+        )
 
-        axs[it].plot(range(len(trial_kruskal)), trial_kruskal, label="Kruskal's method", linestyle="-")
-        axs[it].plot(range(len(trial_sqrt_inv)), trial_sqrt_inv, label="Inverse square root", linestyle="--")
-        axs[it].plot(range(len(trial_const)), trial_const, label="Constant step", linestyle="-.")
+        axs[it].plot(range(len(trial_kruskal)), trial_kruskal, label="Kruskal", linestyle="-")
+        axs[it].plot(range(len(trial_sqrt_inv)), trial_sqrt_inv, label="Inverse root", linestyle="--")
+        axs[it].plot(range(len(trial_const)), trial_const, label="Constant", linestyle="-.")
 
         print("trial_kruskal", len(trial_kruskal))
         print("trial_sqrt", len(trial_sqrt_inv))
@@ -155,7 +164,8 @@ def run_kruskal_tests():
 
     for ax in axs:
         ax.legend()
-        # ax.set_yscale("log")
+        ax.set_yscale("log")
+        ax.set_ylabel("Cost")
 
     plt.tight_layout()
     plt.show()
@@ -715,7 +725,7 @@ def kalman_test_plot(m, n, N, w, h, angle_params):
     states = np.hstack((X, thetas))
 
     indices = utils.generate_indices(m, n)
-    sigmas = utils.generate_sigmas(m, min=10, max=10)
+    sigmas = utils.generate_sigmas(m, min=200, max=400)
     Y = utils.generate_measurements(X, indices, sigmas)
 
     # Initial solve
@@ -802,12 +812,12 @@ def kalman_test_plot(m, n, N, w, h, angle_params):
         state_std[:, 2, :] = state_hist[:, 2, :]
         est_std[:, 2, :] = sign * est_hist[:, 2, :] + offset
 
-    fig, axs = plt.subplots(n // 3, 3, sharex=True)
+    fig, axs = plt.subplots(n // 4, 3, sharex=True)
 
     axs[-1, 0].set_xlabel("Iteration")
     axs[-1, 1].set_xlabel("Iteration")
     axs[-1, 2].set_xlabel("Iteration")
-    for k in range(n // 3):
+    for k in range(n // 4):
         axs[k, 0].plot(state_std[k, 0, :], label="Real", linestyle="-", linewidth=4)
         axs[k, 0].plot(est_std[k, 0, :], label="Est", linestyle="--")
         # axs[k, 0].scatter(range(N), est_std[k, 0, :], label="Est", marker="x", c="C4")
@@ -960,6 +970,7 @@ if __name__ == "__main__":
     plt.style.use("bmh")
     np.seterr("raise")
     np.set_printoptions(precision=3, suppress=True)
+    # np.random.seed(314112)
     # run_kruskal_tests()
     # run_RE_tests()
     # np.random.seed(3141)
@@ -969,9 +980,11 @@ if __name__ == "__main__":
     # kalman_test_plot(20, , 100, 3, 2, (+1, 1 * np.pi))
 
     # To generate plots:
-    np.random.seed(42)
+    # np.random.seed(42)
     # kalman_test_plot(15 * 8, 15, 50, 5, 3, (-1, 0.3 * np.pi, True))
-    kalman_test_plot(90, 10, 50, 5, 2, (1, 2.05 * np.pi, True))
+    # kalman_test_plot(120, 15, 100, 5, 3, (1, 1 * np.pi, True))
+    np.random.seed(12323)
+    kalman_test_plot(120, 15, 100, 5, 3, (1, 2 * np.pi, True))
 
     # To generate plots for poster:
     # np.random.seed(31415)
