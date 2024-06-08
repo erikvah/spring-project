@@ -1,0 +1,79 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{amsmath,amssymb,amsfonts} % Math
+\usepackage{bm} % Bold greek letters
+% \usepackage{algorithmic}
+\usepackage{graphicx} % Plots
+\usepackage[style=ieee]{biblatex} % Bibliography management
+% \usepackage{textcomp}
+\usepackage[super]{nth} % Support for nth counting, aka 1st, 2nd, ...
+\usepackage{xcolor}
+\usepackage{algorithm, algpseudocode} % Algorithm block
+\usepackage{setspace} % Spacing in algorithm block
+\usepackage{tabularx} % Good tables
+\usepackage{placeins} % FloatBarrier 
+\usepackage{subcaption} % Subfigures
+\usepackage{svg}
+
+\addbibresource{..\\sources.bib}
+
+\graphicspath{{.\\figures}}
+
+\input{macros.tex}
+
+\begin{document}
+
+\title{Range-Based Localization and Tracking Using Hybrid Optimization}
+
+\author{\IEEEauthorblockN{Erik Helmer}
+\IEEEauthorblockA{\textit{Department of Electrical Engineering} \\
+\textit{Stanford University}\\
+Palo Alto, USA \\
+erik.helmer@stanford.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+\input{1_abstract.tex}
+
+\end{abstract}
+
+\begin{IEEEkeywords}
+wireless sensor networks, localization, optimization, estimation
+\end{IEEEkeywords}
+
+\section{Introduction}
+\label{sec:intro}
+\input{2_introduction.tex}
+
+\section{Related Work}
+\label{sec:related-work}
+\input{3_related_work.tex}
+
+\section{Problem Statement}
+\label{sec:prob-statement}
+\input{4_problem_statement.tex}
+
+
+\section{Pipeline}
+\label{sec:pipeline}
+\input{5_pipeline.tex}
+
+\section{Results}
+\label{sec:result}
+
+\input{6_results.tex}
+
+\section{Discussion}
+
+\input{7_discussion.tex}
+
+\section{Disclosure}
+
+\input{8_disclosure.tex}
+
+\printbibliography
+
+\end{document}
+
