@@ -1,88 +1,58 @@
-Below are some graphs of empirical test using the implemented algorithms. Firstly, in figure~\ref{fig:kruskal} is a comparison between Kruskal's step size, constant step size, and $\frac{1}{\sqrt{k}}$ step. A number of robot positions and directions were generated, and their approximate positions were provided as initial guesses for the algorithms. 
-% \begin{figure}[ht]
-%     \centering
-%     \begin{subfigure}{\linewidth}
-%         \includegraphics[width=\textwidth,trim=50 0 50 10, clip]{kruskal_5_4.png}
-%         \caption{Smaller tracking example with $n=4$ robots and $m=5$ measurements}
-%     \end{subfigure}
-%     \begin{subfigure}{\linewidth}
-%         \includegraphics[width=\textwidth,trim=50 0 50 10, clip]{kruskal_40_10.png}
-%         \caption{Larger tracking example with $n=10$ robots and $m=40$ measurements}
-%     \end{subfigure}
-%     \caption{Two different cases of robot tracking. } \label{fig:kruskal}
-% \end{figure}
-\begin{figure}[ht]
-    \centering
-    \includesvg[width=\linewidth]{kruskal.svg}
-    \caption{Comparison of convergence speeds for the different algorithms.}
-    \label{fig:kruskal}
-\end{figure}
-The plots above cover a range of reasonable values for $n$ and $m$. For values larger than this, the Riemannian elevator takes too much time and memory to run. While the difference in speed is not large, it should be noted that Kruskal's algorithm requires virtually no tuning, while the other two step schedules required tuning to achieve good performance. Nonetheless, it is not a large improvement and is not key to the success of the tracking algorithm. 
+This section deals with the experimental results of the implemented algorithms. 
 
-In figures~\ref{fig:point-est-small} and~\ref{fig:point-est-large}, the point estimation from distance measurements is showcased. A number of points were generated with noisy distance measurements between them. These values were passed to the Riemannian elevator which generated an initial estimate of the positions, which were further refined by Kruskal's gradient descent method.
+\subsection{Kruskal's Method}
+An important part of the tracking pipeline is the gradient descent optimization step. To measure the performance of Kruskal's method, the speed and reliability was measured and compared with more established step schedules. In figures~\ref{fig:convergence-comp-small}, \ref{fig:convergence-comp-medium}, and~\ref{fig:convergence-comp-large}, these results are shown. 
 \begin{figure}[ht]
     \centering
-    \includegraphics[width=\linewidth,trim=0 20 0 30, clip]{point_est_5_4.png}
-    \caption{A smaller example of point estimation.}
-    \label{fig:point-est-small}
+    \includesvg[width=\linewidth]{kruskal_comp_n4_m7.svg}
+    \caption{Convergence speed of gradient descent for a small example. Kruskal's method is better. }
+    \label{fig:convergence-comp-small}
 \end{figure}
 \begin{figure}[ht]
     \centering
-    \includegraphics[width=\linewidth,trim=0 20 0 30, clip]{point_est_85_10.png}
-    \caption{A larger example of point estimation.}
-    \label{fig:point-est-large}
+    \includesvg[width=\linewidth]{kruskal_comp_n10_m45.svg}
+    \caption{Convergence speed of gradient descent for a medium example. Performance is even. }
+    \label{fig:convergence-comp-medium}
 \end{figure}
-% \begin{figure}[ht]
-%     \centering
-%     \begin{subfigure}{\linewidth}
-%         \includegraphics[width=\textwidth,trim=0 20 0 30, clip]{point_est_5_4.png}
-%         \caption{A smaller example of position estimation}
-%     \end{subfigure}
-%     \begin{subfigure}{\linewidth}
-%         \includegraphics[width=\textwidth,trim=0 20 0 30, clip]{point_est_85_10.png}
-%         \caption{A larger example of position estimation}
-%     \end{subfigure}
-%     \caption{Position estimation from only distance measurements. While there is ambiguity in the rotation and positions of the estimates, they have been rotated and translated to align with the true value for clarity.} \label{fig:riemann}
-% \end{figure}
-Further, in figure~\ref{fig:RE-accuracy}, we see the overall accuracy performance of the combined Riemannian elevator and gradient descent. For a graph with a given number of vertices $n$, the number of ways to connect two of the vertices with a directed edge is given by 
-\begin{align}
-    P(n, 2) = \frac{n!}{(n-2)!} = n (n-1)
-\end{align}
-Therefore, we can determine experimentally that at fewer vertices, $50\%$ accuracy is achieved when around $50\%$ of the possible edges are utilized. As the number of vertices grows, the number of required edges for $50\%$ accuracy shrinks down to about $30\%$. While this is in no way conclusive, and obviously dependant on the level of noise, it does show the power of the Riemannian elevator. 
 \begin{figure}[ht]
     \centering
-    \includesvg[width=\linewidth]{RE_accuracy.svg}
-    \caption{These plots show the success rate of the Riemannian elevator to provide an initial point for which the subsequent gradient descent step converges to the correct arrangement of vertices.}
-    \label{fig:RE-accuracy}
+    \includesvg[width=\linewidth]{kruskal_comp_n15_m150.svg}
+    \caption{Convergence speed of gradient descent for a large problem. Note that both $\frac{1}{\sqrt{k}}$ step and constant step size are missing the largest value because the objective value diverged.}
+    \label{fig:convergence-comp-large}
+\end{figure}
+It is clear that Kruskal's method carries a performance advantage for smaller problems but it is outperformed by the other two methods for larger problems. However, it should be noted that, while Kruskal's method is superficially complex, it does not require much tuning to work well. The only parameter to choose is the initial step, whose value is not dependent on problem size. Meanwhile, for the other two algorithms to be faster, they require tuning for each specific problem instance. In the largest case shown in the plots, neither constant step size nor $\frac{1}{\sqrt{k}}$ step size converged for one the the chosen parameter values. This illustrates the perhaps most important property of Kruskal's algorithm: it works well for all problem sizes without tuning. 
+
+\subsection{Initial Guess}
+The Riemannian elevator was chosen to provide certifiable, accurate estimations of the initial positions, since the tracking performance hinges on the accuracy of this initial guess. In figure~\ref{fig:accuracy-comp}, the initial guess performance is shown. The plot was generated by running the Riemannian elevator to generate an initial guess, followed by running gradient descent as a refinement step. A trial was deemed a success if the final result matched the real arrangement of the robots, within some tolerance. For an example of a successful trial, see figure~\ref{fig:init-ex}
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=\linewidth]{accuracy_comparison.svg}
+    \caption{Accuracy of the Riemannian elevator compared to a random (informed) guess.}
+    \label{fig:accuracy-comp}
+\end{figure}
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=\linewidth]{time_comparison.svg}
+    \caption{Average runtime of the first estimation step in algorithm~\ref{algo:estimation} for a guess generated by the Riemannian elevator compared to a random guess.}
+    \label{fig:speed-comp}
+\end{figure}
+As is shown in figure~\ref{fig:accuracy-comp}, the Riemannian elevator outperforms randomly guessing, which is to be expected. However, random initializations are still surprisingly accurate. Moreover, figure~\ref{fig:speed-comp} reveals the main issue with the algorithm, that being speed. It is at least an order of magnitude slower than gradient descent. 
+\begin{figure}[ht]
+    \centering
+    \includegraphics[width=\linewidth]{point_est_85_10.png}
+    \caption{This figure shows the initial guess generated by the Riemannian elevator and the estimates after refinement, as well as the measurements between the robots.}
+    \label{fig:init-ex}
 \end{figure}
 
-Finally, below in figures~\ref{fig:multi-track} and~\ref{fig:single-track} are some plots of the complete tracking pipeline. It is clear that, while the system is capable of tracking positions with noisy incomplete measurements, the orientation tracking performance degrades and eventually diverges with larger noise. 
-\begin{figure*}
-    \begin{subfigure}{0.49\linewidth}
-        \includesvg[width=\linewidth]{m45_n10_s0.svg}
-        \caption{$n=10, m=45$. No noise.}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.49\linewidth}
-        \includesvg[width=\linewidth]{m45_n10_s200.svg}
-        \caption{$n=10, m=45$. Large noise.}
-    \end{subfigure}
-    \begin{subfigure}{0.49\linewidth}
-        \includesvg[width=\linewidth]{m90_n10_s0.svg}
-        \caption{$n=10, m=90$. No noise.}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}{0.49\linewidth}
-        \includesvg[width=\linewidth]{m90_n10_s200.svg}
-        \caption{$n=10, m=90$. Large noise.}
-    \end{subfigure}
-    \caption{Sample tracking performance for $n=10$ robots with varying numbers of measurements and noise. Dashed line is ground truth, red line is estimated state.}
-    \label{fig:multi-track}
-\end{figure*}
-\FloatBarrier
+\subsection{Tracking}
+When using the Riemannian elevator and Kruskal's method together as in algorithm~\ref{algo:estimation}, it is possible to track the robots over time. In the plots below, the tracking performance of the pipeline is displayed. 
 \begin{figure}[ht]
+    \centering
+    \includesvg[width=\linewidth]{m90_n10_s10.svg}
+    \caption{Tracking performance for $n=10$ robots with $m=90$ measurements and low noise. The real state (blue line) is followed almost perfectly. The jumps in the orientation $\theta$ is due to modulo $2\pi$ plots. }
+\end{figure}
+\begin{figure}
     \centering
     \includesvg[width=\linewidth]{m120_n15_s50.svg}
-    \caption{Tracking $n=15$ robots with $m=120$ measurements, e.g. $57\%$ connectivity, with reasonable noise.}
-    \label{fig:single-track}
+    \caption{Tracking performance for $n=15$ robots with $m=120$ measurements and medium noise. The real state is in blue. The positions are tracked almost perfectly, while the angle is noisy. Note that the angle plot is modulo $2\pi$.}
 \end{figure}

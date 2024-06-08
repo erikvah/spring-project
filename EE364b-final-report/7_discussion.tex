@@ -1,19 +1,4 @@
-\begin{itemize}
-    \item Consistency
-    \item Scheduled rerun of Riemannian elevator
-    \item Computability of larger configurations
-    \item Distributed? 
-    \item Limitations, Future Work, and Conclusions
-    \item Test with more realistic measurements
-\end{itemize}
+\subsection{Performance}
+As shown in section~\ref{sec:result}, Kruskal's method for stress minimization is fast and reliable. However, for the problem sizes investigated in this project, the speed of all implemented algorithms was fast enough that it does not matter in practice. Due to the limited speed and memory of the laptop that all tests and simulations were carried out on, larger problem sizes were not feasible to run the Riemannian elevator on because of the SDP optimization step. While this is the case, it should still be noted that Kruskal's method is fast and stable for all problem sizes investigated, and seems likely to remain so should much larger problems be investigated. 
 
-This section deals with the limitations of this method and in what ways it can be further improved.
-\subsection{Coordinate System Invariance}
-Any solution to the stress minimization problem, either local or global is not unique. Since the stress function is invariant under translation, rotation, and mirroring, there is no way to determine a coordinate system matching some world coordinates. Therefore, any chosen coordinate system is as valid as any other. Initially, the Riemannian elevator is used to get estimates of the positions of the robots. This initial guess gives us the coordinate system to use in future time steps. However, when tracking the positions over longer a longer time horizon, it probable that the coordinate system will begin to drift. This means that, even though a point may have the same coordinates at two different time steps, $x^{(i)}_t = x^{(i)}_\tau$ for $t \neq \tau$, the real robot might not be at the same position at those two time steps. This is a fundamental limitation of the problem setup, as there is no measurements of the outside world. To remedy this, outside anchors could be provided which would both give a reference coordinate frame, as well as enable other localization algorithms like traditional SLAM. 
-
-% Ultimately, these are issues innate to the chosen problem, and even if the relative localization problem was solved globally, they would still persist. As such, we make no effort to solve these as the relative localization problem remains interesting regardless of limitations.
-\subsection{Filter Divergence}
-Even in ideal circumstances, the EKF is not optimal, and indeed not even guaranteed to be stable. This problem persists in this application as well, and is made worse from the fact that the measurements $\mathbf{z}_t$ given to the EKF may be bogus if the gradient descent step did not converge properly. However, this may be partially resolved by scheduling periodic reruns of the Riemannian elevator, or rerunning it if the covariance begins to diverge. This might be able to recover the arrangement of the robots again to keep tracking them.
-
-\subsection{Angle Error}
-For larger levels of noise, the estimation of the angle is unstable and often diverges. It is likely that this is a combined limitation of the EKF and the position measurement procedure. It may be that another extension of the Kalman filter such as the Unscented Kalman filter may be better suited for this problem. 
+While the Riemannian is more reliable than a random initial guess, the difference is smaller than expected. When the comparatively long runtime is factored in, it is not unlikely that a better success rate in a shorter time might be achieved by running multiple trials of random guesses, especially if they are ran in parallel. Part of the performance gap might partially be explained by implementation details, as the gradient descent steps were implemented in an optimized fashion specifically for this problem, while the SDP and manifold optimization steps used the general-purpose solver libraries CVXPY~\cite{cvxpy1,cvxpy2} and Pymanopt~\cite{pymanopt}, respectively. It is likely that the computational limit on problem size would be possible to circumvent by using another solver algorithm or library. 
