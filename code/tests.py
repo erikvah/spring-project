@@ -162,11 +162,13 @@ def run_kruskal_tests():
 
 
 def run_kruskal_tests2():
-    n = 4
-    m = 7
-    dim = [2, 2]
+    n = 15
+    m = 150
+    dim = [5, 3]
 
     params_list = [[0.1, 10, 10], [0.2, 20, 20], [0.4, 40, 40]]
+    # params_list = [[0.1, 10, 10], [0.2, 20, 20]]
+    # params_list = [[0.1, 10, 10]]
     styles = ["-", "--", "-."]
 
     fig, axs = plt.subplots(nrows=3, sharex=False)
@@ -179,28 +181,29 @@ def run_kruskal_tests2():
         axs[2].set_title(f"Constant step size")
         np.random.seed(31415)
 
-        # # Disable cases that do not work
-        # if params[1] > 20:
-        #     params[1] = 21
-        # if params[2] > 20:
-        #     params[2] = 21
+        # Disable cases that do not work
+        if params[1] > 20:
+            params[1] = 21
+        if params[2] > 20:
+            params[2] = 21
         trial_kruskal, trial_sqrt_inv, trial_const = kruskal_test(m, n, w, h, *params, max_its=200)
 
         axs[0].plot(range(len(trial_kruskal)), trial_kruskal, label=f"$\\alpha_0={params[0]}$", linestyle=styles[it])
-        if params[1] <= 200:
+        if params[1] <= 20:
             axs[1].plot(
                 range(len(trial_sqrt_inv)),
                 trial_sqrt_inv,
                 label=f"$\\frac{{{params[1]}}}{{\\sqrt{{k}}}}$",
                 linestyle=styles[it],
             )
-        if params[2] <= 200:
+        if params[2] <= 20:
             axs[2].plot(range(len(trial_const)), trial_const, label=f"$\\alpha={params[2]}$", linestyle=styles[it])
 
     for ax in axs:
         ax.legend()
         ax.set_yscale("log")
-        ax.set_ylim([1e-1, 2e3])
+        ax.set_ylim([5e1, 2e3])
+        ax.set_ylabel("Cost")
 
     plt.suptitle(f"Comparison for ${n = }, {m = }$")
     plt.tight_layout()
@@ -333,7 +336,7 @@ def RE_test(m, n, w, h):
 
 
 def test_success_rates():
-    N = 50
+    N = 10
     ns = [6, 10, 15]
     ms = []
     # ms += [np.linspace(1 * 6, 6 * (6 - 1), 6 - (1 - 1), dtype=int)]
@@ -345,10 +348,14 @@ def test_success_rates():
     dims = [[3, 2], [5, 2], [5, 3]]
 
     success_rates_RE = {n: {} for n in ns}
-    success_rates_guess = {n: {} for n in ns}
+    success_rates_good_guess = {n: {} for n in ns}
+    success_rates_small_guess = {n: {} for n in ns}
+    success_rates_big_guess = {n: {} for n in ns}
 
     times_RE = {n: {} for n in ns}
-    times_guess = {n: {} for n in ns}
+    times_good_guess = {n: {} for n in ns}
+    times_small_guess = {n: {} for n in ns}
+    times_big_guess = {n: {} for n in ns}
 
     for i, (n, dim) in enumerate(zip(ns, dims)):
         w, h = dim
@@ -360,11 +367,26 @@ def test_success_rates():
             success_rates_RE[n][int(m)] = int(s_rate * 100)
             times_RE[n][int(m)] = t / N
 
+            generator = lambda: np.vstack([np.random.uniform(0, 1600, size=n), np.random.uniform(0, 900, size=n)]).T
             utils.tick()
-            s_rate = random_success_rate(m, n, N, w, h, verbose=False)
+            s_rate = random_success_rate(m, n, N, w, h, generator, verbose=False)
             t = utils.tock()
-            success_rates_guess[n][int(m)] = int(s_rate * 100)
-            times_guess[n][int(m)] = t / N
+            success_rates_good_guess[n][int(m)] = int(s_rate * 100)
+            times_good_guess[n][int(m)] = t / N
+
+            generator = lambda: np.random.multivariate_normal([0, 0], [[10, 0], [0, 10]], size=n)
+            utils.tick()
+            s_rate = random_success_rate(m, n, N, w, h, generator, verbose=False)
+            t = utils.tock()
+            success_rates_small_guess[n][int(m)] = int(s_rate * 100)
+            times_small_guess[n][int(m)] = t / N
+
+            generator = lambda: np.random.multivariate_normal([0, 0], [[10 * 1600**2, 0], [0, 10 * 900**2]], size=n)
+            utils.tick()
+            s_rate = random_success_rate(m, n, N, w, h, generator, verbose=False)
+            t = utils.tock()
+            success_rates_big_guess[n][int(m)] = int(s_rate * 100)
+            times_big_guess[n][int(m)] = t / N
 
     fig, axs = plt.subplots(len(ns))
 
@@ -378,22 +400,41 @@ def test_success_rates():
             color="#8C1515",
             marker="x",
             markersize=10,
-            linestyle="--",
-            label="Riemannian Elevator",
+            linestyle="-",
+            label="Riemannian elevator",
         )
         axs[i].plot(
             ms[i],
-            [success_rates_guess[n][m] for m in ms[i]],
+            [success_rates_good_guess[n][m] for m in ms[i]],
             color="C2",
             marker="+",
             markersize=10,
-            linestyle=":",
-            label="Random Guess",
+            linestyle="--",
+            label="Informed guess",
         )
-        axs[i].legend()
+        axs[i].plot(
+            ms[i],
+            [success_rates_small_guess[n][m] for m in ms[i]],
+            color="C3",
+            marker="+",
+            markersize=10,
+            linestyle="-.",
+            label="Too small guess",
+        )
+        axs[i].plot(
+            ms[i],
+            [success_rates_big_guess[n][m] for m in ms[i]],
+            color="C4",
+            marker="v",
+            markersize=10,
+            linestyle=":",
+            label="Too big guess",
+        )
         axs[i].set_xlabel("m")
         axs[i].set_ylabel("Success rate [%]")
         axs[i].set_title(f"{n = }")
+        # axs[i].legend()
+    axs[0].legend()
 
     plt.tight_layout()
 
@@ -409,17 +450,35 @@ def test_success_rates():
             color="#8C1515",
             marker="x",
             markersize=10,
-            linestyle="--",
-            label="Riemannian Elevator",
+            linestyle="-",
+            label="Riemannian elevator",
         )
         axs[i].plot(
             ms[i],
-            [times_guess[n][m] for m in ms[i]],
+            [times_good_guess[n][m] for m in ms[i]],
             color="C2",
             marker="+",
             markersize=10,
+            linestyle="--",
+            label="Informed guess",
+        )
+        axs[i].plot(
+            ms[i],
+            [times_small_guess[n][m] for m in ms[i]],
+            color="C3",
+            marker="v",
+            markersize=10,
+            linestyle="-.",
+            label="Too small guess",
+        )
+        axs[i].plot(
+            ms[i],
+            [times_big_guess[n][m] for m in ms[i]],
+            color="C4",
+            marker="^",
+            markersize=10,
             linestyle=":",
-            label="Random Guess",
+            label="Too big guess",
         )
         axs[i].legend()
         axs[i].set_xlabel("m")
@@ -642,7 +701,7 @@ def kalman_test_map(m, n, N, w, h):
 
 def kalman_test_plot(m, n, N, w, h, angle_params):
     # Initialize
-    matplotlib.rcParams["font.family"] = "serif"
+    # matplotlib.rcParams["font.family"] = "serif"
     params = get_default_params()
     params.kalman_R_gain *= 1
     params.dt = 2
@@ -656,7 +715,7 @@ def kalman_test_plot(m, n, N, w, h, angle_params):
     states = np.hstack((X, thetas))
 
     indices = utils.generate_indices(m, n)
-    sigmas = utils.generate_sigmas(m, min=25, max=75)
+    sigmas = utils.generate_sigmas(m, min=10, max=10)
     Y = utils.generate_measurements(X, indices, sigmas)
 
     # Initial solve
@@ -743,30 +802,33 @@ def kalman_test_plot(m, n, N, w, h, angle_params):
         state_std[:, 2, :] = state_hist[:, 2, :]
         est_std[:, 2, :] = sign * est_hist[:, 2, :] + offset
 
-    fig, axs = plt.subplots(n // 4, 3, sharex=True)
+    fig, axs = plt.subplots(n // 3, 3, sharex=True)
 
     axs[-1, 0].set_xlabel("Iteration")
     axs[-1, 1].set_xlabel("Iteration")
     axs[-1, 2].set_xlabel("Iteration")
-    for k in range(n // 4):
-        axs[k, 0].plot(state_std[k, 0, :], label="Real", linestyle="-")
+    for k in range(n // 3):
+        axs[k, 0].plot(state_std[k, 0, :], label="Real", linestyle="-", linewidth=4)
         axs[k, 0].plot(est_std[k, 0, :], label="Est", linestyle="--")
         # axs[k, 0].scatter(range(N), est_std[k, 0, :], label="Est", marker="x", c="C4")
         # axs[k, 0].plot(np.linalg.norm(est_std[k, :2, :] - state_std[k, :2, :], axis=0))
         # axs[k, 0].set_title("$||r_{pos}||^2_2$")
         axs[k, 0].set_title(f"Robot {k+1} $x$")
+        axs[k, 0].set_ylabel("Position")
         # axs[k, 0].legend()
 
-        axs[k, 1].plot(state_std[k, 1, :], label="Real", linestyle="-")
+        axs[k, 1].plot(state_std[k, 1, :], label="Real", linestyle="-", linewidth=4)
         axs[k, 1].plot(est_std[k, 1, :], label="Est", linestyle="--")
         # axs[k, 1].scatter(range(N), est_std[k, 1, :], label="Est", marker="x", c="C4")
         axs[k, 1].set_title(f"Robot {k+1} $y$")
+        axs[k, 1].set_ylabel("Position")
         # axs[k, 1].legend()
 
-        axs[k, 2].plot(state_std[k, 2, :], label="Real", linestyle="-")
+        axs[k, 2].plot(state_std[k, 2, :], label="Real", linestyle="-", linewidth=4)
         axs[k, 2].plot(est_std[k, 2, :], label="Est", linestyle="--")
         # axs[k, 2].scatter(range(N), est_std[k, 2, :], label="Est", marker="x", c="C4")
         axs[k, 2].set_title(f"Robot {k+1} $\\theta$")
+        axs[k, 2].set_ylabel("Angle [rad]")
         # axs[k, 2].legend()
 
     plt.tight_layout()
@@ -825,7 +887,7 @@ def run_random_solve_test():
     print(json.dumps(success_rates, indent=2))
 
 
-def random_success_rate(m, n, N, w, h, verbose):
+def random_success_rate(m, n, N, w, h, guess_generator, verbose):
     successes = 0
     for it in range(N):
         params = get_default_params()
@@ -839,7 +901,8 @@ def random_success_rate(m, n, N, w, h, verbose):
         sigmas = utils.generate_sigmas(m, min=25, max=25)
         Y = utils.generate_measurements(X, indices, sigmas)
 
-        X_0 = np.vstack([np.random.uniform(0, 1600, size=n), np.random.uniform(0, 900, size=n)]).T
+        # X_0 = np.vstack([np.random.uniform(0, 1600, size=n), np.random.uniform(0, 900, size=n)]).T
+        X_0 = guess_generator()
 
         X_hat, _ = estimator.estimate_gradient(indices, Y, sigmas, X_0, verbose=verbose)
 
@@ -906,8 +969,9 @@ if __name__ == "__main__":
     # kalman_test_plot(20, , 100, 3, 2, (+1, 1 * np.pi))
 
     # To generate plots:
-    # np.random.seed(42)
+    np.random.seed(42)
     # kalman_test_plot(15 * 8, 15, 50, 5, 3, (-1, 0.3 * np.pi, True))
+    kalman_test_plot(90, 10, 50, 5, 2, (1, 2.05 * np.pi, True))
 
     # To generate plots for poster:
     # np.random.seed(31415)
@@ -920,6 +984,6 @@ if __name__ == "__main__":
     # np.random.seed(31415)
     # run_random_solve_test()
 
-    run_kruskal_tests2()
+    # run_kruskal_tests2()
 
 # Up to 15 targets work (maybe more?), depending on noise and number of connections
